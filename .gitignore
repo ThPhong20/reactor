@@ -1,0 +1,9 @@
+# Build artifacts
+build/
+
+# ESP-IDF generated files
+sdkconfig.old
+
+# IDE
+.vscode/
+.cache/
