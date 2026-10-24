@@ -34,9 +34,9 @@ reactor/
 │   │   ├── i2c/                # I2C
 │   │   └── serial/             # UART / USB console
 │   ├── common/                # Shared configuration and utilities
-│   └── test/                  # Existing host test placeholder; outside firmware build
+│   └── test/                  # Pump host tests; outside firmware build
 ├── docs/                      # Architecture and module responsibilities
-├── external/                  # Third-party RTOS / PID integration placeholders
+├── external/                  # Third-party RTOS integration placeholder
 ├── tools/                     # Development scripts and helper tools
 ├── sdkconfig                  # Existing active target configuration
 ├── sdkconfig.defaults.esp32s3  # N16R8 board defaults
@@ -59,9 +59,10 @@ idf.py -B build/esp32s3 \
 ```
 
 Use the same options with `flash monitor` to flash that build. The board profile
-selects 16 MB flash and Octal PSRAM. It does not assign sensor or pump GPIOs.
+selects 16 MB flash and Octal PSRAM. Pump GPIOs are assigned in shared configuration.
 
-`idf.py build` continues to use the existing root `sdkconfig` (currently ESP32).
+`idf.py build` continues to use the existing root `sdkconfig` (currently ESP32-S3,
+2 MB flash, PSRAM disabled).
 The separate S3 build preserves that configuration.
 
 ## Notes
@@ -69,7 +70,14 @@ The separate S3 build preserves that configuration.
 Local per-component bench tests live in the sibling folder `../benchtest/`,
 outside this repository and its firmware build.
 
-This change establishes the architecture scaffold. Startup logging and the idle
-scheduler delay are wired through the layers. Sensor acquisition, calibration,
-safety interlocks, watchdog management, pump control, state transitions, and
-telemetry payloads remain to be implemented. No pump output is configured.
+The pump manager configures three PWM outputs at startup, all initially off:
+GPIO 4 is the 70 mL/min inlet, GPIO 5 is the 49 mL/min outlet, and GPIO 6 is the
+21 mL/min outlet. PWM uses 10 kHz and 10-bit resolution. The inlet's saved duty is
+90%, measured at 70 mL/min; both outlet duties remain 0% pending calibration.
+Saved duties are applied only when explicitly commanded, not at startup.
+See [pump control](docs/pumps.md) for APIs, calibration, and host tests.
+
+Startup logging and the idle scheduler delay are wired through the layers.
+Sensor acquisition, safety interlocks, watchdog management, state transitions,
+operator commands, and sensor telemetry remain to be implemented. The main loop
+does not start pumps automatically.

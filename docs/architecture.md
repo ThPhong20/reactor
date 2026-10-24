@@ -61,20 +61,29 @@ Dedicated UART or USB transport initialization remains to be implemented.
 
 The S3 board defaults select 16 MB flash and Octal PSRAM. The isolated S3 build
 command in the [project README](../README.md) uses those defaults and an S3
-target without replacing the existing ESP32 `sdkconfig`.
+target without replacing the existing `sdkconfig` (now ESP32-S3 with 2 MB flash
+and PSRAM disabled).
 
-GPIO assignments, sensor calibration data, PWM frequency and duty resolution,
-I2C addresses, interlock polarity, and communication transport have not been
-specified. Add those choices to shared configuration as the hardware is wired.
+Pump GPIOs are 4 (70 mL/min inlet), 5 (49 mL/min outlet), and 6 (21 mL/min outlet).
+The PWM HAL uses LEDC low-speed timer 0, channels 0..2, at 10 kHz with 10-bit duty
+resolution. Shared configuration stores pin mappings, flow targets, and adjustable
+duties. The inlet's measured operating point is 70 mL/min at 90% duty; the outlet
+duties remain 0% pending calibration. See [pump control](pumps.md).
+Sensor GPIOs and calibration data, I2C addresses, interlock polarity, and
+communication transport remain unspecified.
 
 Reference: [Espressif DevKitC-1 board guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.0.html)
 and [ESP-IDF build system](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/build-system.html).
 
 ## Current behavior
 
-The entry point calls `app::init()` and `app::run()`. Startup telemetry travels
-through the application telemetry module, serial driver, and serial HAL. The
-main loop waits for the shared sample interval through the scheduler and timer
-HAL. All other modules are explicit placeholders with no hardware activity.
+The entry point calls `app::init()` and `app::run()`. The pump manager initializes
+three outputs at zero duty through the pump driver and LEDC HAL. Startup and pump
+initialization telemetry travel through the telemetry module, serial driver,
+and serial HAL. The main loop waits for the shared sample interval through the
+scheduler and timer HAL; it does not issue pump start commands. Pump APIs support
+manual duty adjustment, stored operating duties, coordinated start, and stop.
+Other control and sensor modules remain placeholders.
 
-Bench tests remain outside the repository in `../benchtest/`.
+Hardware bench tests remain outside the repository in `../benchtest/`. Pump
+manager/driver host tests live in `src/test/` and use a fake PWM HAL.
