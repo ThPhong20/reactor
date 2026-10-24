@@ -4,5 +4,6 @@
 namespace app::telemetry {
 
 void report_startup();
+void report_pump_initialization(bool ready);
 
 } // namespace app::telemetry
