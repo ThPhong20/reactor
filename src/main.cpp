@@ -1,8 +1,7 @@
-#include <iostream>
+#include "application/app.h"
 
-int main()
+extern "C" void app_main(void)
 {
-    // Host-side placeholder entry point.
-    std::cout << "Reactor host app skeleton" << std::endl;
-    return 0;
+    app::init();
+    app::run();
 }

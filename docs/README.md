@@ -1,3 +1,4 @@
-# Docs
+# Project Documentation
 
-Project documentation placeholder.
+- [System architecture](architecture.md): layer boundaries, module responsibilities,
+  board configuration, and implementation status.
