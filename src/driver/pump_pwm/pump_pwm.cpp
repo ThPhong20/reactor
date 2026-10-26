@@ -1,5 +1,9 @@
 #include "driver/pump_pwm/pump_pwm.h"
 
+#include "hal/pwm/pwm.h"
+
+#include <cmath>
+
 namespace drivers::pump_pwm {
 
 namespace {

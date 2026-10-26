@@ -1,8 +1,10 @@
 #pragma once
 
-// Turbidity device conversion and calibration; uses the ADC HAL.
+// Turbidity sensor driver scaffold; acquisition is not implemented yet.
+// This layer will own sensor readings and model-specific calibration.
 namespace drivers::turbidity {
 
-// TODO: Define this module's interface when its hardware and behavior are specified.
+// TODO: Define configuration and reading APIs after confirming the sensor
+// model, electrical interface, pin assignment, and calibration method.
 
 } // namespace drivers::turbidity

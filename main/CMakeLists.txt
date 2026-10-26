@@ -2,30 +2,30 @@ idf_component_register(
     SRCS
         "../src/main.cpp"
         "../src/application/app.cpp"
+        "../src/application/data_store/data_store.cpp"
+        "../src/application/display_manager/display_manager.cpp"
         "../src/common/system_config.cpp"
         "../src/application/scheduler/scheduler.cpp"
-        "../src/application/safety_manager/safety_manager.cpp"
         "../src/application/sensor_manager/sensor_manager.cpp"
-        "../src/application/state_machine/state_machine.cpp"
         "../src/application/pump_manager/pump_manager.cpp"
         "../src/application/telemetry/telemetry.cpp"
         "../src/driver/pump_pwm/pump_pwm.cpp"
         "../src/driver/ph/ph.cpp"
         "../src/driver/ec/ec.cpp"
-        "../src/driver/turbidity/turbidity.cpp"
-        "../src/driver/ina226/ina226.cpp"
         "../src/driver/serial/serial.cpp"
+        "../src/driver/tft/tft.cpp"
         "../src/hal/timers_watchdog/timers_watchdog.cpp"
-        "../src/hal/gpio/gpio.cpp"
         "../src/hal/pwm/pwm.cpp"
         "../src/hal/adc/adc.cpp"
-        "../src/hal/i2c/i2c.cpp"
         "../src/hal/serial/serial.cpp"
+        "../src/hal/lcd/lcd.cpp"
     INCLUDE_DIRS "../src"
     PRIV_REQUIRES
         esp_adc
+        esp_lcd
+        esp_driver_spi
+        heap
         esp_driver_gpio
-        esp_driver_i2c
         esp_driver_ledc
         esp_driver_uart
         esp_timer

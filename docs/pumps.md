@@ -80,9 +80,9 @@ startup, pin mapping, independent duties, invalid input, start preflight, partia
 initialization, output errors, stop errors, and restart behavior:
 
 ```bash
-cmake -S src/test -B build/pump-tests
-cmake --build build/pump-tests
-ctest --test-dir build/pump-tests --output-on-failure
+cmake -S src/test -B build/host-tests
+cmake --build build/host-tests --target pump_control_test
+ctest --test-dir build/host-tests -R '^pump_' --output-on-failure
 ```
 
 The normal ESP-IDF firmware build compiles the actual LEDC HAL. Host tests do

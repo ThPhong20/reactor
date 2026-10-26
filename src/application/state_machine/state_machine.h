@@ -1,6 +1,6 @@
 #pragma once
 
-// Finite state machine: INIT, IDLE, PRIME, RUNNING, and FAULT; commands the pump manager.
+// Planned reactor states. Transition and output-control logic are not implemented.
 namespace app::state_machine {
 
 enum class State { Init, Idle, Prime, Running, Fault };
