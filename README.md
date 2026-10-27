@@ -1,4 +1,18 @@
-# Reactor Firmware
+# ESP32-S3 Reactor Monitoring & Control
+
+Embedded firmware for monitoring pH and electrical conductivity, displaying sensor readings, and controlling three peristaltic pumps in a reactor system.
+
+**Stack:** C++ · ESP-IDF · ESP32-S3 · ADC · SPI/TFT · PWM
+
+## Project overview
+
+The firmware separates application logic, device drivers, and hardware interfaces. Sensor readings pass through acquisition and filtering into a 60-record RAM history, serial telemetry, and a TFT display. Pump control is exposed through explicit commands; automatic reactor operation is still in development.
+
+**Project status:** In development. Integrated hardware validation remains pending.
+
+[Architecture](docs/architecture.md) · [Development progress](docs/progress.md) · [Sensors](docs/sensors.md) · [Pump control](docs/pumps.md) · [Display](docs/display.md)
+
+## Implementation status
 
 ESP-IDF C++ firmware organized around the reactor system architecture.
 The design targets the ESP32-S3 DevKitC-1 N16R8 and uses the installed SDK's
