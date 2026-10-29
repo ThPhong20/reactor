@@ -11,11 +11,13 @@ system_config::EcConfig settings{};
 bool ready = false;
 bool high_range = false;
 
+// Check that manual temperature is finite and within 0–40 C.
 bool valid_temperature(float value)
 {
     return std::isfinite(value) && value >= 0.0f && value <= 40.0f;
 }
 
+// Check both EC calibration factors against the supported limits.
 bool valid_calibration(const system_config::EcCalibration& calibration)
 {
     return std::isfinite(calibration.low_k) && std::isfinite(calibration.high_k) &&
@@ -24,6 +26,7 @@ bool valid_calibration(const system_config::EcCalibration& calibration)
 }
 } // namespace
 
+// Validate EC settings and configure its ADC input.
 bool init(const system_config::EcConfig& config)
 {
     ready = false;
@@ -38,6 +41,7 @@ bool init(const system_config::EcConfig& config)
     return true;
 }
 
+// Save a valid manual temperature for EC compensation.
 bool set_temperature(float temperature_c)
 {
     if (!ready || !valid_temperature(temperature_c)) {
@@ -47,11 +51,13 @@ bool set_temperature(float temperature_c)
     return true;
 }
 
+// Return the manual temperature, or NaN when uninitialized.
 float temperature()
 {
     return ready ? settings.temperature_c : std::numeric_limits<float>::quiet_NaN();
 }
 
+// Save valid EC factors and reset range selection.
 bool set_calibration(const system_config::EcCalibration& calibration)
 {
     if (!ready || !valid_calibration(calibration)) {
@@ -62,6 +68,7 @@ bool set_calibration(const system_config::EcCalibration& calibration)
     return true;
 }
 
+// Convert an ADC sample to EC25 in mS/cm, or return an error.
 sensor_data::Reading read()
 {
     sensor_data::Reading result;

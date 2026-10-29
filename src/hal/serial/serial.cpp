@@ -5,6 +5,7 @@
 
 namespace hal::serial {
 
+// Write a message through the configured ESP-IDF logging console.
 void write_line(const char* message)
 {
     // Uses the configured ESP-IDF console until an explicit transport is selected.

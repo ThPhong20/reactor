@@ -24,6 +24,7 @@ bool attempted = false;
 bool ready = false;
 bool enabled = false;
 
+// Notify the waiting task from the LCD transfer-completion interrupt.
 bool transfer_done(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t*, void* context)
 {
     BaseType_t wake = pdFALSE;
@@ -31,6 +32,7 @@ bool transfer_done(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t*, vo
     return wake == pdTRUE;
 }
 
+// Log an LCD SDK error and disable further transfers on failure.
 bool check(esp_err_t result)
 {
     if (result == ESP_OK) return true;
@@ -40,6 +42,7 @@ bool check(esp_err_t result)
 }
 } // namespace
 
+// Validate wiring and allocate the SPI panel and DMA resources once.
 bool init(const system_config::DisplayConfig& config)
 {
     if (attempted) {
@@ -118,6 +121,7 @@ bool init(const system_config::DisplayConfig& config)
     return ready;
 }
 
+// Copy a pixel strip to DMA memory and wait for transfer completion.
 bool write_row(int row, const display_data::Pixels& pixels)
 {
     if (!ready || row < 0 || row >= static_cast<int>(display_data::row_count)) return false;
@@ -133,6 +137,7 @@ bool write_row(int row, const display_data::Pixels& pixels)
     return true;
 }
 
+// Turn on the initialized panel after the first complete frame.
 bool enable()
 {
     if (!ready) return false;

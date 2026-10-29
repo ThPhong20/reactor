@@ -3,16 +3,15 @@
 | Pump | GPIO / LEDC channel | Target flow | Saved operating duty |
 | --- | --- | --- | --- |
 | Inlet | 4 / 0 | 70 mL/min | 90% (measured) |
-| Outlet 1 | 5 / 1 | 49 mL/min | 0% (awaiting calibration) |
-| Outlet 2 | 6 / 2 | 21 mL/min | 0% (awaiting calibration) |
+| Outlet 1 | 5 / 1 | 49 mL/min | 65% (measured) |
+| Outlet 2 | 6 / 2 | 21 mL/min | 42% (measured) |
 
 The outlet targets add up to the inlet target. The user measured the inlet at
-70 mL/min with 90% duty using 10 kHz, 10-bit PWM. Outlet targets still need their
-own measurements; they are not PWM percentages or guaranteed pump capacities.
+70 mL/min with 90% duty using 10 kHz, 10-bit PWM. Outlet 1 was measured at 49 mL/min with 65% duty. Outlet 2 was measured at 21 mL/min with 42% duty; flow targets are not PWM percentages or guaranteed pump capacities.
 
 `system_config::default_pump_config()` in `src/common/system_config.cpp` stores
 the pin mapping, targets, and each pump's adjustable `duty_percent`. The inlet
-defaults to 90% and the outlets to 0%. All physical outputs initialize at 0%,
+defaults to 90%, outlet 1 to 65%, and outlet 2 to 42%. All physical outputs initialize at 0%,
 regardless of saved duty. The PWM signal uses active-high pulses: 0% holds the pin
 low and 100% holds it high. These GPIOs are control signals for pump drivers.
 
@@ -32,9 +31,10 @@ other pumps.
 ## Startup and control
 
 `app::init()` initializes the pump manager and leaves all outputs off. The
-application loop does not start pumps yet; START/STOP handling and the reactor
-state machine are still pending. A nonzero stored duty does not enable a pump
-at boot.
+application loop does not start pumps automatically. The FSM owns guarded
+START/STOP events, but the production adapter blocks START until required
+readiness and hardware backends exist. There is no serial/button command parser.
+A nonzero stored duty does not enable a pump at boot. See [the FSM](state_machine.md).
 
 Use the pump manager from the application task:
 

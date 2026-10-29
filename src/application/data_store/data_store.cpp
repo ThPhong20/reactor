@@ -2,12 +2,14 @@
 
 namespace app::data_store {
 
+// Reset history indexes and sample numbering.
 void Store::clear()
 {
     next_ = count_ = 0;
     sequence_ = 0;
 }
 
+// Copy a timestamped sample into history, replacing the oldest if full.
 void Store::push(const sensor_data::Snapshot& sensors, std::uint64_t sampled_at_ms)
 {
     // Store failures as well as successes; never replace a failed fresh sample
@@ -17,11 +19,13 @@ void Store::push(const sensor_data::Snapshot& sensors, std::uint64_t sampled_at_
     if (count_ < capacity) ++count_;
 }
 
+// Copy the newest record; clear the output if history is empty.
 bool Store::latest(sensor_data::Record& out) const
 {
     return newest(0, out);
 }
 
+// Copy a record by age, where zero selects the newest sample.
 bool Store::newest(std::size_t age, sensor_data::Record& out) const
 {
     if (age >= count_) {

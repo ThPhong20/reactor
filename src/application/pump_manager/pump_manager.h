@@ -9,6 +9,10 @@ using Pump = system_config::Pump;
 
 // Configures GPIO 4/5/6 with every output off. Never starts pumps automatically.
 bool init();
+// Report whether the pump manager accepts output commands.
+bool is_ready();
+// Nonzero valid saved duties, not proof of measured flow calibration.
+bool operating_duties_ready();
 // Store a duty in RAM for the next start_all(); does not change running outputs.
 // Reinitialization or reboot reloads the defaults from system_config.cpp.
 bool set_operating_duty(Pump pump, float percent);

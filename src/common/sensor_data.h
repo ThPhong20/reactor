@@ -28,6 +28,7 @@ inline Status effective_status(const Reading& reading)
     return reading.status;
 }
 
+// Report whether a reading contains a usable value, including estimates.
 inline bool has_value(const Reading& reading)
 {
     const auto status = effective_status(reading);

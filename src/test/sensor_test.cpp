@@ -25,6 +25,7 @@ int fail_read = -1;
 unsigned configure_calls = 0;
 std::vector<std::string> messages;
 
+// Fail the test immediately when a required condition is false.
 void require(bool condition, const char* message)
 {
     if (!condition) {
@@ -33,21 +34,25 @@ void require(bool condition, const char* message)
     }
 }
 
+// Check a converted value against the expected numerical tolerance.
 void near(float value, float expected)
 {
     require(std::isfinite(value) && std::fabs(value - expected) < 0.002f, "unexpected converted value");
 }
 
+// Set the simulated pH board voltage.
 void ph_voltage(float mv)
 {
     inputs[1] = {2000, mv, false};
 }
 
+// Set simulated EC pin voltage using the configured divider gain.
 void ec_voltage(float board_mv)
 {
     inputs[2] = {1000, board_mv / 1.5f, false};
 }
 
+// Check whether captured serial output contains the requested text.
 bool logged(const char* text)
 {
     for (const auto& message : messages) {
@@ -58,6 +63,7 @@ bool logged(const char* text)
 } // namespace
 
 namespace hal::adc {
+// Simulate ADC initialization and optional channel failure.
 bool configure(int gpio)
 {
     ++configure_calls;
@@ -67,6 +73,7 @@ bool configure(int gpio)
     return true;
 }
 
+// Return a configured ADC sample or an injected read failure.
 bool read(int gpio, Sample& sample)
 {
     require(gpio == 1 || gpio == 2, "unexpected read GPIO");
@@ -82,12 +89,14 @@ bool read(int gpio, Sample& sample)
 } // namespace hal::adc
 
 namespace drivers::serial {
+// Capture serial messages for output assertions.
 void write_line(const char* message)
 {
     messages.emplace_back(message);
 }
 } // namespace drivers::serial
 
+// Run the requested test scenario and return its result.
 int main(int argc, char** argv)
 {
     require(argc == 2, "provide a scenario");

@@ -41,6 +41,7 @@ constexpr Glyph font[] = {
     {'/',{0x20,0x10,8,4,2}}, {':',{0,0x36,0x36,0,0}},
 };
 
+// Map a display tone to its RGB565 text color.
 std::uint16_t color(display_data::Tone tone)
 {
     switch (tone) {
@@ -51,6 +52,7 @@ std::uint16_t color(display_data::Tone tone)
     }
 }
 
+// Clear and render one text row into the reusable pixel strip.
 void draw(const display_data::Row& row)
 {
     pixels.fill(0); // Clear the entire strip, including old/longer values.
@@ -80,12 +82,14 @@ void draw(const display_data::Row& row)
 }
 } // namespace
 
+// Initialize the LCD hardware and remember its readiness.
 bool init(const system_config::DisplayConfig& config)
 {
     ready = hal::lcd::init(config);
     return ready;
 }
 
+// Transfer all text rows and enable the panel after a complete frame.
 bool show(const display_data::Frame& frame)
 {
     if (!ready) return false;

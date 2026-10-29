@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "../src/main.cpp"
         "../src/application/app.cpp"
+        "../src/application/state_machine/state_machine.cpp"
         "../src/application/data_store/data_store.cpp"
         "../src/application/display_manager/display_manager.cpp"
         "../src/common/system_config.cpp"

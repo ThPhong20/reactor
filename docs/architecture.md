@@ -15,14 +15,15 @@ not required. `src/main.cpp` provides the only firmware entry point, `app_main()
 | `scheduler` | Schedule sampling, control, and reporting work | Timers/watchdog HAL |
 | `sensor_manager` | Read pH/EC, expose calibration and temperature settings; other sensors pending | pH and EC drivers; planned turbidity/INA226 |
 | `turbidity_manager` | Scaffold for turbidity sampling, filtering, and monitoring status | Planned turbidity driver calls |
-| `state_machine` | Header-only enum: INIT, IDLE, PRIME, RUNNING, FAULT | Transitions and output control pending |
+| `state_machine` | INIT, IDLE, PRIME, RUNNING, STOPPING, FAULT; guards, timeout, faults/reset | Sensor snapshots, readiness inputs, injected output callbacks |
 | `pump_manager` | Coordinate three pumps | Pump PWM driver |
 | `telemetry` | Report sensor readings, state, and faults | Serial driver |
 
-The state enum is declared in `src/application/state_machine/state_machine.h`.
-Transitions, events, guards, and recovery rules must be defined before control
-behavior is implemented. The scaffold does not assume automatic priming or a
-transition to RUNNING.
+The FSM is implemented in `src/application/state_machine/`. The application
+supplies sensor snapshots and pump readiness, and connects pump callbacks.
+Flow-verification/interlock readiness stays false and the power callback is
+absent, so actual START is blocked. The state and first blocker/fault reason
+appear on TFT and serial. See [state machine behavior](state_machine.md).
 
 EC and turbidity are required sensors. EC is also an input to the planned
 theoretical-pH calculation. That calculation belongs in the application layer,
@@ -87,8 +88,8 @@ The Makefile now selects this isolated N16R8 configuration for all its targets.
 Pump GPIOs are 4 (70 mL/min inlet), 5 (49 mL/min outlet), and 6 (21 mL/min outlet).
 The PWM HAL uses LEDC low-speed timer 0, channels 0..2, at 10 kHz with 10-bit duty
 resolution. Shared configuration stores pin mappings, flow targets, and adjustable
-duties. The inlet's measured operating point is 70 mL/min at 90% duty; the outlet
-duties remain 0% pending calibration. See [pump control](pumps.md).
+duties. The inlet's measured operating point is 70 mL/min at 90% duty; outlet 1
+delivers 49 mL/min at 65% duty. Outlet 2 delivers 21 mL/min at 42% duty. See [pump control](pumps.md).
 pH uses GPIO1 directly; EC uses GPIO2 through the bench test's 10k/20k divider.
 The drivers target SEN0161-V2 and DFR0300 V2 K=1. Liquid calibration measurements
 are still needed; default coefficients are explicitly marked as estimates.
@@ -110,8 +111,8 @@ then waits for the shared sample interval through the scheduler and timer HAL;
 it does not issue pump start commands. Pump APIs support
 manual duty adjustment, stored operating duties, coordinated start, and stop.
 Sensor calibration/temperature setters are C++ APIs with RAM-only updates; NVS
-and serial calibration commands remain pending. Reactor state transitions,
-safety interlocks, turbidity, and INA226 acquisition remain unimplemented.
+and serial calibration commands remain pending. FSM transitions are implemented;
+physical safety interlocks, turbidity, and INA226 acquisition remain unimplemented.
 
 The TFT is GMT130/ST7789 240x240 with SCLK/MOSI/DC/RESET on GPIO12/11/10/9.
 Storage includes a turbidity field that remains unavailable until acquisition
@@ -123,7 +124,7 @@ See [sensor storage and TFT](display.md) for ownership, wiring, and failure hand
 Implement these features when their hardware and behavior are defined:
 
 - Safety manager and GPIO input support for interlocks and STOP handling.
-- State-machine transitions and electrolysis power control.
+- Operator events, physical flow confirmation, and electrolysis power control.
 - Turbidity acquisition and INA226 current/voltage monitoring with I2C support.
 - EC-based theoretical-pH calculation, stored separately from measured pH.
 

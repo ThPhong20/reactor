@@ -8,5 +8,6 @@ namespace hal::lcd {
 bool init(const system_config::DisplayConfig& config);
 // Copies to a DMA buffer and waits for completion before allowing reuse.
 bool write_row(int row, const display_data::Pixels& pixels);
+// Turn on the initialized panel after the first complete frame.
 bool enable();
 } // namespace hal::lcd

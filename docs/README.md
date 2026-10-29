@@ -1,5 +1,7 @@
 # Project Documentation
 
+- [Reactor state machine](state_machine.md): states, readiness checks, shutdown order, and current hardware restrictions.
+- [System simulation](simulation.md): repeatable host runs, fault injection, TFT captures, and timing limits.
 - [Development progress](progress.md): current status, verified work, configuration, and next steps.
 - [Code review](code_review.md): consistency fixes, remaining gaps, and maintenance guidance.
 - [System architecture](architecture.md): layer boundaries, module responsibilities,

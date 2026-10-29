@@ -1,13 +1,18 @@
 # Development progress
 
-Updated: 2026-10-26
+Updated: 2026-10-29
 
 ## Current stage
 
 The Gen2 monitoring software is partially implemented for the ESP32-S3 DevKitC-1 N16R8.
 It reads pH and EC, stores recent samples, and sends readings to the TFT and
 serial monitor. Pump control APIs are implemented, but the main loop keeps
-pumps off. Automatic reactor operation is not implemented yet.
+pumps off. The FSM sequence is implemented and tested in simulation; real
+operation is blocked by missing readiness and hardware-control integration.
+
+Overall completion is estimated at about 65%. This is an engineering estimate,
+not a measured acceptance score. Repeating the simulation confirms existing
+behavior; it does not complete the remaining hardware or sensor work.
 
 EC and turbidity are required sensors. EC also supplies the planned theoretical-pH
 calculation. Required turbidity acquisition and theoretical pH are still pending;
@@ -22,7 +27,7 @@ DevKitC-1 firmware still needs a physical test.
 | Part | Implemented now | Remaining work |
 | --- | --- | --- |
 | Project structure | Application, driver, HAL, shared data/configuration, host tests; unused scaffolding cleaned up | Add future modules as needed |
-| Three pumps | Independent PWM, adjustable duties, coordinated start/stop, startup at zero duty; 10 kHz / 10-bit | Measure both outlet duties; verify flow under actual plumbing conditions; add operator controls |
+| Three pumps | Independent PWM, adjustable duties, coordinated start/stop, startup at zero duty; 10 kHz / 10-bit | Verify all three flows together under actual plumbing conditions; add operator controls |
 | pH | SEN0161-V2 acquisition, voltage conversion, calibration API, error status | Measure buffer references and verify on hardware; save calibration persistently |
 | EC (required) | DFR0300 V2 K=1 acquisition, calibration API, normalization to 25 C using manual temperature | Calibrate with standards and verify divider/readings; save calibration persistently; supply theoretical-pH calculation |
 | Turbidity (required) | Driver/application folders and data/display fields | Confirm model, interface, pin, and calibration; implement acquisition |
@@ -30,8 +35,8 @@ DevKitC-1 firmware still needs a physical test.
 | Data storage | Latest 60 snapshots in RAM, with uptime, sequence number, and sensor status | Persistent data logging/export if required; RAM clears at restart |
 | TFT | GMT130/ST7789 240x240 renderer, values, units, calibration/error labels, startup screen | Verify wiring, alignment, colors, and refresh on DevKitC-1 |
 | Serial output | Sensor readings/status and startup/display messages | Operator input and serial calibration commands |
-| Reactor sequence | INIT/IDLE/PRIME/RUNNING/FAULT enum | Events, transitions, priming, operator confirmation, and RUNNING behavior |
-| Safety | Pump-driver error handling and zero-duty startup | Reactor interlocks, emergency STOP behavior, fault recovery, watchdog management |
+| Reactor sequence | INIT/IDLE/PRIME/RUNNING/STOPPING/FAULT, readiness guards, priming timeout, latched faults/reset, TFT/serial state | Operator input, verified flow readiness, interlock and PSU backends; real START remains blocked |
+| Safety | Zero-duty startup, software shutdown order, readiness-loss faults, explicit reset | Physical interlocks/emergency STOP, hardware validation, fast control task and watchdog management |
 | Electrolysis | No power-control implementation | Define power interface and actual current/voltage feedback before implementing regulation |
 | Manuscript calculations | Method reviewed previously | Implement monitoring metrics after required measurements and equation/unit questions are resolved |
 
@@ -44,16 +49,16 @@ remain unavailable until implemented.
 | Connection | GPIO | Setting / status |
 | --- | --- | --- |
 | Inlet pump | 4 | Target 70 mL/min; user measured 70 mL/min at 90% duty |
-| Outlet 1 pump | 5 | Target 49 mL/min; saved duty 0% until calibrated |
-| Outlet 2 pump | 6 | Target 21 mL/min; saved duty 0% until calibrated |
+| Outlet 1 pump | 5 | Measured 49 mL/min at 65% duty |
+| Outlet 2 pump | 6 | Measured 21 mL/min at 42% duty |
 | pH analog input | 1 | Direct sensor-board input |
 | EC analog input | 2 | 10k/20k divider; restore board voltage with gain 1.5 |
 | TFT SCLK / MOSI | 12 / 11 | SPI2, 20 MHz, mode 3 |
 | TFT DC / RESET | 10 / 9 | Seven-pin module, no exposed CS |
 | Turbidity input | Unassigned | Awaiting sensor details |
 
-The outlet numbers are target flows, not measured flows. The inlet measurement
-is one calibration point, not a general linear PWM-to-flow formula. All three
+All three pumps have individually measured operating points.
+These measurements do not establish a general linear PWM-to-flow formula. All three
 pumps remain off at boot, including the inlet with its saved 90% duty.
 
 ## Current runtime workflow
@@ -62,7 +67,8 @@ pumps remain off at boot, including the inlet with its saved 90% duty.
 2. Initialize pH/EC acquisition, clear RAM history, and initialize the TFT.
 3. Sample pH and EC; retain turbidity as unavailable.
 4. Save the snapshot and time since boot in the 60-record RAM history.
-5. Show the latest stored snapshot on the TFT and print it over serial.
+5. Evaluate the FSM, then show the latest stored snapshot, state, and reason on
+   the TFT; report readings and state changes over serial.
 6. Wait 1000 ms, then repeat. Sampling/display/logging add to that interval.
 
 Readings carry independent error/calibration status. Failed readings do not
@@ -72,11 +78,20 @@ display updates until reboot while acquisition and storage continue.
 
 ## Verification completed
 
-Latest verification after the consistency/maintenance review:
+Latest host verification: 2026-10-29.
 
-- 26 host tests passed: 11 pump, 8 sensor, 7 storage/display scenarios.
-- ESP-IDF firmware build passed for ESP32-S3, 16 MB flash, Octal PSRAM enabled.
-- Final firmware build had no reported compiler warnings or errors.
+- 42 host tests passed: 14 FSM, 11 pump, 8 sensor, 7 storage/display, 2 system simulations.
+- Normal and fault-injected simulations each ran the real application loop for
+  90 cycles with simulated peripherals; see [simulation results](simulation.md).
+- Normal simulation: 90 reads per sensor, 91 TFT frames, maximum report interval 1,028 ms.
+- Fault simulation: five injected failures per sensor recovered; TFT timeout
+  disabled display updates while sampling continued for all 90 cycles.
+  Maximum report interval was 1,258 ms. Timing is virtual, not measured hardware timing.
+- Saved pump duties are 90%, 65%, and 42%. Both simulations confirmed zero
+  startup output and rejected START with `IDLE / VERIFY PUMP FLOWS`.
+- The preceding firmware review successfully built for ESP32-S3, 16 MB flash,
+  Octal PSRAM enabled, with no compiler warnings or errors. This rerun changed
+  documentation only; it did not rebuild or flash firmware.
 - Complete DevKitC-1 + pumps + sensors + TFT hardware operation is not verified.
 
 Host tests use fake peripheral interfaces. They validate software behavior,
@@ -91,11 +106,12 @@ consistent reading validation, build configuration, and TFT layout checks.
 ## Next development steps
 
 - [ ] Test the combined monitoring firmware on the DevKitC-1 and TFT.
-- [ ] Calibrate pH and EC; measure the outlet duties needed for 49 and 21 mL/min.
+- [ ] Calibrate pH and EC; verify all three flows together.
 - [ ] Confirm turbidity hardware details, then implement and test its acquisition.
 - [ ] Implement EC-based theoretical pH separately from electrode-measured pH.
 - [ ] Add persistent calibration and operator controls.
-- [ ] Define and implement safety handling and the reactor state sequence.
+- [x] Implement and simulate the guarded reactor state sequence.
+- [ ] Connect physical interlocks/operator events and verify shutdown on hardware.
 - [ ] Add electrolysis current/voltage measurement and power control.
 - [ ] Implement the agreed manuscript monitoring calculations using the needed measurements.
 - [ ] Add persistent logs/export if required for experiments.

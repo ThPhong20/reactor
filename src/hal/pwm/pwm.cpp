@@ -19,6 +19,7 @@ constexpr unsigned duty_steps = 1U << static_cast<unsigned>(resolution);
 std::array<bool, LEDC_CHANNEL_MAX> configured{};
 bool timer_ready = false;
 
+// Log a PWM SDK error and return whether the call succeeded.
 bool checked(esp_err_t error)
 {
     if (error != ESP_OK) {
@@ -28,6 +29,7 @@ bool checked(esp_err_t error)
 }
 } // namespace
 
+// Configure the shared LEDC timer once at the requested frequency.
 bool init(std::uint32_t frequency_hz)
 {
     // Reconfiguring a shared timer could change every running pump's waveform.
@@ -44,6 +46,7 @@ bool init(std::uint32_t frequency_hz)
     return timer_ready;
 }
 
+// Prepare a GPIO low and attach a zero-duty LEDC channel.
 bool configure_channel(unsigned channel, int gpio)
 {
     if (!timer_ready || channel >= configured.size() || configured[channel] ||
@@ -66,6 +69,7 @@ bool configure_channel(unsigned channel, int gpio)
     return configured[channel];
 }
 
+// Convert a duty percentage to LEDC counts and apply it.
 bool set_duty(unsigned channel, float percent)
 {
     if (channel >= configured.size() || !configured[channel] ||
@@ -86,6 +90,7 @@ bool set_duty(unsigned channel, float percent)
            checked(ledc_update_duty(mode, static_cast<ledc_channel_t>(channel)));
 }
 
+// Stop one configured LEDC channel with its output held low.
 bool stop(unsigned channel)
 {
     if (channel >= configured.size() || !configured[channel]) {

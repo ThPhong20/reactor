@@ -19,11 +19,14 @@ bool init_ok = true;
 bool enable_ok = true;
 int fail_row = -1;
 std::vector<display_data::Pixels> drawn;
+// Fail the test immediately when a required condition is false.
 void require(bool condition, const char* message)
 {
     if (!condition) { std::cerr << message << '\n'; std::exit(1); }
 }
+// Return the text stored in one formatted display row.
 std::string text(const display_data::Frame& frame, int row) { return frame[row].text.data(); }
+// Create a sample containing calibrated pH and estimated EC.
 sensor_data::Record example()
 {
     sensor_data::Record result;
@@ -38,7 +41,9 @@ sensor_data::Record example()
 } // namespace
 
 namespace hal::lcd {
+// Count display initialization attempts and return the simulated result.
 bool init(const system_config::DisplayConfig&) { ++init_calls; return init_ok; }
+// Capture rendered pixels and optionally fail the selected row.
 bool write_row(int row, const display_data::Pixels& pixels)
 {
     require(row == static_cast<int>(writes % 10), "rows must cover panel in order");
@@ -46,9 +51,11 @@ bool write_row(int row, const display_data::Pixels& pixels)
     drawn.push_back(pixels);
     return row != fail_row;
 }
+// Count panel-enable attempts and return the simulated result.
 bool enable() { ++enables; return enable_ok; }
 } // namespace hal::lcd
 
+// Run the requested test scenario and return its result.
 int main(int argc, char** argv)
 {
     require(argc == 2, "provide scenario");
@@ -84,6 +91,8 @@ int main(int argc, char** argv)
     }
     if (scenario == "format") {
         auto frame = display::format(record, 1000);
+        const auto state_frame = display::format(record, 1000, "IDLE", "SET PUMP DUTIES");
+        require(text(state_frame, 0) == "IDLE" && text(state_frame, 9) == "SET PUMP DUTIES", "display FSM state and blocker");
         require(text(frame, 2) == "PH 7.00" && text(frame, 4) == "EC 1.41 MS/CM", "values and units");
         require(text(frame, 3) == "CALIBRATED" && frame[3].tone == Tone::Good, "calibrated status");
         require(text(frame, 5) == "NEEDS CALIBRATION" && frame[5].tone == Tone::Warning, "estimate warning");

@@ -16,6 +16,7 @@ constexpr auto bitwidth = ADC_BITWIDTH_12;
 adc_oneshot_unit_handle_t unit = nullptr;
 std::array<adc_cali_handle_t, SOC_ADC_CHANNEL_NUM(0)> calibration{};
 
+// Log an ADC SDK error and return whether the call succeeded.
 bool checked(esp_err_t error)
 {
     if (error != ESP_OK) {
@@ -24,6 +25,7 @@ bool checked(esp_err_t error)
     return error == ESP_OK;
 }
 
+// Resolve a GPIO to a supported ADC1 channel.
 bool channel_for(int gpio, adc_channel_t& channel)
 {
     adc_unit_t requested_unit;
@@ -32,6 +34,7 @@ bool channel_for(int gpio, adc_channel_t& channel)
 }
 } // namespace
 
+// Configure an ADC1 input and reuse or create its voltage calibration.
 bool configure(int gpio)
 {
     adc_channel_t channel;
@@ -64,6 +67,7 @@ bool configure(int gpio)
     return checked(adc_cali_create_scheme_curve_fitting(&curve, &calibration[channel]));
 }
 
+// Average ADC samples, detect clipping, and return calibrated millivolts.
 bool read(int gpio, Sample& sample)
 {
     sample = {};

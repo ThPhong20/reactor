@@ -10,6 +10,7 @@ namespace {
 system_config::PhConfig settings{};
 bool ready = false;
 
+// Validate the pH 7 and pH 4 reference-voltage windows.
 bool valid_calibration(const system_config::PhCalibration& calibration)
 {
     // SEN0161-V2 pH 7.00 and 4.00 recognition windows from the bench test.
@@ -20,6 +21,7 @@ bool valid_calibration(const system_config::PhCalibration& calibration)
 }
 } // namespace
 
+// Validate pH calibration and configure its ADC input.
 bool init(const system_config::PhConfig& config)
 {
     ready = false;
@@ -31,6 +33,7 @@ bool init(const system_config::PhConfig& config)
     return true;
 }
 
+// Save valid pH reference voltages for subsequent readings.
 bool set_calibration(const system_config::PhCalibration& calibration)
 {
     if (!ready || !valid_calibration(calibration)) {
@@ -40,6 +43,7 @@ bool set_calibration(const system_config::PhCalibration& calibration)
     return true;
 }
 
+// Convert an ADC sample to pH, or return an explicit error.
 sensor_data::Reading read()
 {
     sensor_data::Reading result; // Fresh result: a failed read cannot reuse old pH.

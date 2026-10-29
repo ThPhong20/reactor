@@ -13,6 +13,7 @@ bool initialized = false;
 bool init_attempted = false;
 } // namespace
 
+// Configure pump PWM channels at zero duty; repeat init stops outputs.
 bool init(const system_config::PumpConfigs& config)
 {
     // A second init stops existing outputs; hardware errors require a reboot.
@@ -43,6 +44,7 @@ bool init(const system_config::PumpConfigs& config)
     return true;
 }
 
+// Set one pump duty and attempt shutdown if a hardware write fails.
 bool set_duty(system_config::Pump pump, float percent)
 {
     const auto channel = static_cast<unsigned>(pump);
@@ -60,6 +62,7 @@ bool set_duty(system_config::Pump pump, float percent)
     return true;
 }
 
+// Attempt to stop all configured channels and latch stop failures.
 bool stop_all()
 {
     // Do not return early: a failure on one pump must not skip the other pumps.

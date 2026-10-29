@@ -10,6 +10,7 @@ bool ph_ready = false;
 bool ec_ready = false;
 } // namespace
 
+// Check pin ownership and initialize pH and EC independently.
 bool init(const system_config::SensorConfig& config, const system_config::DisplayConfig& display)
 {
     ph_ready = false;
@@ -23,6 +24,7 @@ bool init(const system_config::SensorConfig& config, const system_config::Displa
     return ph_ready && ec_ready;
 }
 
+// Read available sensors into a fresh snapshot, preserving error status.
 sensor_data::Snapshot sample()
 {
     // Read both even if one fails. Each reading carries its own error/calibration
@@ -36,16 +38,19 @@ sensor_data::Snapshot sample()
     return readings;
 }
 
+// Apply pH calibration in RAM when the pH driver is ready.
 bool set_ph_calibration(const system_config::PhCalibration& calibration)
 {
     return ph_ready && drivers::ph::set_calibration(calibration);
 }
 
+// Apply EC calibration in RAM when the EC driver is ready.
 bool set_ec_calibration(const system_config::EcCalibration& calibration)
 {
     return ec_ready && drivers::ec::set_calibration(calibration);
 }
 
+// Update the manual EC compensation temperature when ready.
 bool set_ec_temperature(float temperature_c)
 {
     return ec_ready && drivers::ec::set_temperature(temperature_c);

@@ -7,11 +7,13 @@
 
 namespace hal::timers_watchdog {
 
+// Read monotonic milliseconds from the ESP-IDF timer.
 std::uint64_t uptime_ms()
 {
     return static_cast<std::uint64_t>(esp_timer_get_time() / 1000);
 }
 
+// Yield the current FreeRTOS task for at least one tick.
 void delay_ms(int interval_ms)
 {
     const auto ticks = pdMS_TO_TICKS(interval_ms > 0 ? interval_ms : 1);

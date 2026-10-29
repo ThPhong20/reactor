@@ -11,6 +11,7 @@ struct RuntimeConfig {
     bool logging_enabled;
 };
 
+// Return the monitoring interval and serial-logging setting.
 RuntimeConfig default_config();
 
 // Enum order matches the configuration array and LEDC channels 0, 1, and 2.
@@ -31,6 +32,7 @@ struct PumpConfig {
 };
 
 using PumpConfigs = std::array<PumpConfig, pump_count>;
+// Return pump pins, target flows, and saved operating duties.
 PumpConfigs default_pump_config();
 
 // Sensor calibration is separate from the ESP32 ADC's voltage calibration.
@@ -64,6 +66,7 @@ struct SensorConfig {
     EcConfig ec;
 };
 
+// Return pH/EC wiring, calibration defaults, and manual temperature.
 SensorConfig default_sensor_config();
 
 // GMT130 / ST7789 240x240, SPI2. These are DevKitC-1 GPIO numbers,
@@ -77,11 +80,13 @@ struct DisplayConfig {
     int y_offset = 0; // Set to 80 only if this panel needs that vertical offset.
     bool invert_colors = true;
 };
+// Return the default DevKitC-1 TFT wiring and panel settings.
 DisplayConfig default_display_config();
 
 // Shared board checks used before either sensor or display initialization.
 // Pump pins come from default_pump_config(), as used by the pump manager.
 bool valid_display_config(const DisplayConfig& display);
+// Reject shared sensor pins and sensor/display/pump pin conflicts.
 bool valid_pin_assignments(const SensorConfig& sensors, const DisplayConfig& display);
 
 } // namespace system_config

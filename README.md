@@ -21,9 +21,14 @@ default C++ standard (currently C++26).
 Current stage: pH/EC monitoring, 60-sample RAM storage, TFT/serial output, and
 pump control APIs are implemented. EC and turbidity are required sensors;
 turbidity acquisition and EC-based theoretical-pH calculation remain pending,
-along with automatic reactor operation and full safety handling. The latest
-verification passed 26 host tests and the N16R8 firmware build; integrated hardware testing remains.
+along with hardware safety and power-control integration. The FSM now implements
+guarded startup, priming, STOP, faults, and reset; real START remains blocked.
+Verification includes 42 host tests and the N16R8 firmware build; integrated
+hardware testing remains. See [the state machine](docs/state_machine.md).
 See [development progress](docs/progress.md) for the status and next steps.
+
+See [system simulation](docs/simulation.md) for repeatable software checks,
+injected sensor/display failures, and captured TFT output.
 
 ## Structure
 
@@ -39,7 +44,7 @@ reactor/
 │   │   ├── scheduler/          # Timer / scheduler
 │   │   ├── sensor_manager/     # Read / filter / calibrate
 │   │   ├── turbidity_manager/  # Turbidity monitoring scaffold
-│   │   ├── state_machine/      # State enum only; transitions pending
+│   │   ├── state_machine/      # Guarded transitions, stop, faults, and reset
 │   │   ├── pump_manager/       # Pump 1 / Pump 2 / Pump 3
 │   │   └── telemetry/          # Telemetry / serial monitor
 │   ├── driver/
@@ -63,8 +68,7 @@ reactor/
 └── build/                     # Generated output (ignored)
 ```
 
-Implemented modules have matching headers and implementation files. The
-`state_machine/` directory currently contains only the planned state enum.
+Implemented modules have matching headers and implementation files.
 See [the architecture guide](docs/architecture.md) for the layer boundaries.
 
 ## Build (ESP-IDF)
@@ -97,7 +101,8 @@ outside this repository and its firmware build.
 The pump manager configures three PWM outputs at startup, all initially off:
 GPIO 4 is the 70 mL/min inlet, GPIO 5 is the 49 mL/min outlet, and GPIO 6 is the
 21 mL/min outlet. PWM uses 10 kHz and 10-bit resolution. The inlet's saved duty is
-90%, measured at 70 mL/min; both outlet duties remain 0% pending calibration.
+90%, measured at 70 mL/min; outlet 1 uses 65%, measured at 49 mL/min.
+Outlet 2 uses 42%, measured at 21 mL/min.
 Saved duties are applied only when explicitly commanded, not at startup.
 See [pump control](docs/pumps.md) for APIs, calibration, and host tests.
 
@@ -114,7 +119,7 @@ Turbidity displays unavailable until its acquisition code is implemented.
 RAM history clears at power-off; there is no persistent log yet.
 See [sensor storage and TFT](docs/display.md) for the data flow and wiring.
 
-Safety interlocks, watchdog management, state transitions, operator commands,
+Hardware safety interlocks, watchdog management, operator commands,
 NVS calibration storage, and the other sensors remain to be implemented. The
 main loop does not start pumps automatically.
 

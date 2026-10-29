@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reactor Firmware — Techniques and Practical Instructions</title>
+<style>
+@page { size: A4; margin: 17mm; }
+* { box-sizing: border-box; }
+body { margin: 0; color: #233247; font: 10pt/1.48 "DejaVu Sans", sans-serif; }
+.page { position: relative; height: 262mm; padding: 0 0 15mm; break-after: page; }
+.page:last-child { break-after: auto; }
+.eyebrow { color: #187e87; text-transform: uppercase; font-size: 8pt; letter-spacing: 1.7px; font-weight: bold; margin-bottom: 7mm; }
+h1 { font-size: 36pt; line-height: 1.12; letter-spacing: -1.5px; margin: 8mm 0; color: #142b45; }
+h2 { font-size: 23pt; line-height: 1.2; margin: 0 0 6mm; color: #142b45; }
+h3 { font-size: 11pt; margin: 5mm 0 2mm; color: #187e87; }
+p { margin: 0 0 3mm; }
+ol, ul { padding-left: 6mm; margin: 2mm 0 4mm; }
+li { margin: 0 0 2mm; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.4pt; overflow-wrap: anywhere; }
+pre { font: 8.3pt/1.5 "DejaVu Sans Mono", monospace; background: #edf2f7; border-left: 3px solid #187e87; padding: 4mm; margin: 3mm 0 4mm; white-space: pre-wrap; overflow-wrap: anywhere; }
+table { border-collapse: collapse; width: 100%; margin: 3mm 0 4mm; font-size: 9pt; }
+th { text-align: left; color: #fff; background: #203f59; padding: 2.5mm 3mm; }
+td { padding: 2.5mm 3mm; border-bottom: 1px solid #dce4ec; vertical-align: top; }
+tr:nth-child(even) td { background: #f3f6f9; }
+.note { background: #eaf5f3; border-left: 3px solid #187e87; padding: 3.5mm 4mm; margin: 4mm 0; }
+.exercise { border: 1px solid #c4d7e4; padding: 3.5mm 4mm; margin: 4mm 0; }
+.small, .source { font-size: 8.2pt; color: #526377; }
+.source { margin-top: 4mm; }
+.footer { position: absolute; bottom: 0; left: 0; right: 0; border-top: 1px solid #cddbe6; padding-top: 3mm; display: flex; justify-content: space-between; font-size: 8pt; color: #62758a; }
+.subtitle { font-size: 16pt; line-height: 1.4; color: #526377; margin-bottom: 9mm; }
+.flow { display: flex; align-items: center; gap: 2mm; margin: 6mm 0; }
+.box { flex: 1; background: #edf2f7; border-top: 3px solid #187e87; padding: 4mm 2mm; text-align: center; font-size: 9pt; }
+.arrow { color: #187e87; font-weight: bold; }
+.toc { list-style: none; padding: 0; margin-top: 5mm; }
+.toc li { display: flex; justify-content: space-between; border-bottom: 1px solid #e1e7ee; padding-bottom: 2mm; margin-bottom: 2mm; }
+a { color: #187e87; text-decoration: none; }
+.cover-band { background: #142b45; color: white; padding: 6mm; margin: 7mm 0; }
+.cover-band p { margin: 0; }
+@media screen { body { background: #dce4ec; } .page { background: white; width: 210mm; height: 297mm; padding: 17mm; margin: 8mm auto; } .footer { left: 17mm; right: 17mm; bottom: 17mm; } }
+</style>
+</head>
+<body>
+
+<section class="page" id="overview">
+<div class="eyebrow">Project learning guide · ESP32-S3 · C++ / ESP-IDF</div>
+<h1>Reactor firmware<br>techniques</h1>
+<p class="subtitle">How the code works, why each technique is used,<br>and how to practice it.</p>
+<div class="cover-band"><p>Layered design · finite-state control · sensor processing<br>Fixed-size storage · callback injection · deterministic simulation</p></div>
+<p>This guide follows the local project source inspected on <strong>27 October 2026</strong>. It is intended for a reader with basic C++ knowledge who wants to understand or extend the firmware.</p>
+<p>Each chapter connects a technique to its implementation, gives practical instructions, and includes a small check or exercise. Code fragments are excerpts or clearly labeled illustrations.</p>
+<h3>Contents</h3>
+<ul class="toc">
+<li><a href="#architecture">1. Layered architecture and the main loop</a><span>2</span></li>
+<li><a href="#fsm">2. Guarded finite-state machine</a><span>3</span></li>
+<li><a href="#pumps">3. PWM and coordinated pump control</a><span>4</span></li>
+<li><a href="#adc">4. ADC sampling and noise reduction</a><span>5</span></li>
+<li><a href="#calibration">5. Calibration, compensation and hysteresis</a><span>6</span></li>
+<li><a href="#data">6. Explicit errors and circular storage</a><span>7</span></li>
+<li><a href="#testing">7. Dependency injection and simulation</a><span>8</span></li>
+<li><a href="#display">8. Display strips and DMA synchronization</a><span>9</span></li>
+<li><a href="#configuration">9. Defensive configuration and extension</a><span>10</span></li>
+<li><a href="#practice">10. Practice workflow and source map</a><span>11</span></li>
+</ul>
+<div class="note"><strong>Current implementation:</strong> monitoring, RAM history, display, telemetry, pump APIs and FSM logic exist. Turbidity acquisition, physical interlocks, verified flows and electrode power control are incomplete. The application keeps pumps off and blocks START. This guide explains software behavior; it is not a reactor commissioning procedure.</div>
+<div class="footer"><span>Reactor firmware · Techniques and practical instructions</span><span>1 / 11</span></div>
+</section>
+
+<section class="page" id="architecture">
+<div class="eyebrow">01 · Organization and execution</div>
+<h2>Layered architecture<br>and the main loop</h2>
+<p>The firmware separates <strong>what the system should do</strong> from <strong>how devices and peripherals do it</strong>. This makes hardware changes local and allows application logic to run in host tests.</p>
+<div class="flow"><div class="box"><strong>Application</strong><br>Managers and FSM</div><span class="arrow">→</span><div class="box"><strong>Device drivers</strong><br>pH, EC, pumps, TFT</div><span class="arrow">→</span><div class="box"><strong>HAL</strong><br>ADC, PWM, SPI, time</div><span class="arrow">→</span><div class="box"><strong>ESP-IDF</strong><br>ESP32-S3 hardware</div></div>
+<table><tr><th>Layer</th><th>Put this logic here</th><th>Project example</th></tr>
+<tr><td>Application</td><td>Coordination, state transitions, storage and presentation</td><td><code>sensor_manager::sample()</code></td></tr>
+<tr><td>Device driver</td><td>Device-specific conversion and operating behavior</td><td>Voltage → pH in <code>ph.cpp</code></td></tr>
+<tr><td>HAL</td><td>Peripheral setup and ESP-IDF calls</td><td><code>adc_oneshot_read()</code></td></tr></table>
+<h3>Follow one complete cycle</h3>
+<ol>
+<li><code>src/main.cpp</code> enters <code>app::init()</code>, then <code>app::run()</code>.</li>
+<li>The loop samples pH and EC and pushes a timestamped snapshot into history.</li>
+<li>The FSM receives a Tick with current readings and readiness flags.</li>
+<li>The display and serial telemetry present values, status and state.</li>
+<li>The scheduler calls the timer HAL, which yields with <code>vTaskDelay()</code>.</li>
+</ol>
+<h3>Use the pattern when adding a feature</h3>
+<p>Place a new sensor's peripheral operations in the HAL, its voltage-to-unit conversion in a driver, and its use in decisions or reporting in the application. The scheduler calls the timer HAL directly because it has no separate device-specific conversion.</p>
+<p>The boundaries are conventions: all firmware sources are explicitly registered in one ESP-IDF component in <code>main/CMakeLists.txt</code>. Namespaces and header interfaces organize the code; not every module is a class.</p>
+<div class="note"><strong>Timing:</strong> this is a sequential loop running in a FreeRTOS task. Its cycle time is approximately work time + the configured 1,000 ms delay, with scheduling/tick effects. Display work delays the next sample. A dedicated fast safety task and fixed-period scheduling are not implemented.</div>
+<div class="exercise"><strong>Exercise:</strong> trace a pH reading from <code>app::run()</code> to the ADC and back.<br><strong>Expected:</strong> the manager coordinates sampling, the HAL acquires voltage, and the pH driver converts voltage to pH.</div>
+<p class="source">Read: src/application/app.cpp · src/application/scheduler/scheduler.cpp · src/hal/timers_watchdog/timers_watchdog.cpp</p>
+<div class="footer"><span>Reactor firmware · Architecture</span><span>2 / 11</span></div>
+</section>
+
+<section class="page" id="fsm">
+<div class="eyebrow">02 · Control logic</div>
+<h2>Guarded finite-state machine</h2>
+<p>A finite-state machine (FSM) gives the controller one explicit operating state. An event requests a transition; <strong>guards</strong> decide whether it is allowed; output callbacks perform the actions.</p>
+<table><tr><th>From / event</th><th>Condition and action</th><th>Result</th></tr>
+<tr><td>INIT / initialize</td><td>Confirm outputs off and pumps ready</td><td>IDLE, or FAULT on failure</td></tr>
+<tr><td>IDLE / Start</td><td>All guards pass; power off; start pumps</td><td>PRIME</td></tr>
+<tr><td>PRIME / FlowConfirmed</td><td>Guards pass, before timeout; enable power</td><td>RUNNING</td></tr>
+<tr><td>PRIME or RUNNING / Stop</td><td>Power off, then stop pumps</td><td>Transient STOPPING → IDLE</td></tr>
+<tr><td>Active operation / lost readiness</td><td>Attempt shutdown and record reason</td><td>Latched FAULT</td></tr>
+<tr><td>FAULT / Reset</td><td>Readiness restored and shutdown succeeds</td><td>INIT; initialize again</td></tr></table>
+<h3>Understand the startup guards</h3>
+<p><code>start_blocker()</code> returns the first failed check: external fault; pump availability and callbacks; nonzero saved duties; verified flows; fresh sensor data; available and calibrated pH, EC and turbidity; available and closed interlocks; and a power callback.</p>
+<p>A sample needs a nonzero sequence and a timestamp no later than now. Age greater than <strong>3,000 ms</strong> is stale. Priming times out at <strong>60,000 ms</strong>, including a FlowConfirmed event arriving at that deadline.</p>
+<h3>How to extend the FSM</h3>
+<ol>
+<li>Define the event, allowed source states, guard and output action before changing code.</li>
+<li>Return a specific reason when rejecting a transition or latching a fault.</li>
+<li>Keep output sequencing explicit: shutdown attempts power-off first, then pump-stop even if power-off fails.</li>
+<li>Add host cases for acceptance, rejection, callback failure and timing boundaries.</li>
+</ol>
+<div class="note">STOP attempts shutdown in any state, but does not clear a latched FAULT or bypass INIT. A shutdown failure becomes <code>ShutdownFailed</code>. These are software shutdown attempts, not physical confirmation that equipment stopped.</div>
+<div class="exercise"><strong>Exercise:</strong> with otherwise healthy host inputs, advance <code>now_ms</code> to 3,001 ms after the sample timestamp and send Tick while RUNNING.<br><strong>Expected:</strong> FAULT with <code>StaleSensors</code>; power-off and pump-stop are attempted. Keep synthetic readiness in host tests only.</div>
+<p class="source">Read: src/application/state_machine/state_machine.{h,cpp} · src/test/state_machine_test.cpp</p>
+<div class="footer"><span>Reactor firmware · Finite-state control</span><span>3 / 11</span></div>
+</section>
+
+<section class="page" id="pumps">
+<div class="eyebrow">03 · Actuator control</div>
+<h2>PWM and coordinated<br>pump control</h2>
+<p>Pulse-width modulation (PWM) changes the fraction of each period for which an output is high. Three ESP32 LEDC channels share a <strong>10 kHz, 10-bit</strong> timer. The pump manager stores operating duties; the driver and HAL apply outputs.</p>
+<pre>Period = 1 / 10,000 Hz = 100 microseconds
+Duty steps = 2^10 = 1,024
+Hardware duty = round(percent × 1,024 / 100)
+90% → 922 steps → approximately 90.04% high time</pre>
+<table><tr><th>Pump</th><th>GPIO</th><th>Target flow</th><th>Saved duty</th></tr>
+<tr><td>Inlet</td><td>4</td><td>70 mL/min</td><td>90%, one measured operating point</td></tr>
+<tr><td>Outlet 1</td><td>5</td><td>49 mL/min</td><td>65%, measured</td></tr>
+<tr><td>Outlet 2</td><td>6</td><td>21 mL/min</td><td>42%, measured</td></tr></table>
+<h3>Separate configuration from actuation</h3>
+<ol>
+<li><code>init()</code> loads saved settings but configures physical outputs at zero.</li>
+<li><code>set_operating_duty()</code> saves a valid 0–100% value for a later start. Saving it does not start a pump.</li>
+<li><code>start_all()</code> requires every saved duty to be finite, valid and nonzero before issuing channel writes.</li>
+<li>Channel writes occur in order. A write failure triggers driver shutdown attempts and makes the manager unavailable for further starts.</li>
+<li><code>stop_all()</code> remains callable after faults so shutdown can be attempted again.</li>
+</ol>
+<p><code>set_manual_duty()</code> applies an output immediately and is a lower-level API. Direct pump calls do not enforce all reactor FSM guards. Normal reactor sequencing belongs through the FSM; operator commands are not yet wired to a physical interface.</p>
+<div class="note"><strong>Flow is not duty:</strong> 49 mL/min does not mean 49% PWM. The 70 mL/min inlet measurement at 90% is one operating point, not a linear model. Outlet 1 was measured at 49 mL/min with 65% duty. Outlet 2 was measured at 21 mL/min with 42% duty. Combined flow verification is still pending. This is open-loop duty control; it has no PID flow regulator.</div>
+<h3>Practice with fake hardware</h3>
+<p>Use <code>pump_control_test.cpp</code> to simulate successful setup, partial startup and stop failures. Check initial zero outputs, rejection of invalid duties, and shutdown attempts on every configured channel after a write failure.</p>
+<div class="exercise"><strong>Exercise:</strong> keep one outlet's saved duty at zero and call <code>start_all()</code> in a host test.<br><strong>Expected:</strong> rejection before any pump starts. Then inject a failure during a valid coordinated start and check shutdown attempts.</div>
+<p class="source">Read: src/application/pump_manager/pump_manager.cpp · src/driver/pump_pwm/pump_pwm.cpp · src/hal/pwm/pwm.cpp</p>
+<div class="footer"><span>Reactor firmware · PWM and output sequencing</span><span>4 / 11</span></div>
+</section>
+
+<section class="page" id="adc">
+<div class="eyebrow">04 · Signal acquisition</div>
+<h2>ADC sampling<br>and noise reduction</h2>
+<p>The analog-to-digital converter (ADC) measures sensor voltages. The shared ADC1 HAL configures 12-bit one-shot reads with 12 dB attenuation and creates an ESP-IDF curve-fitting calibration handle for each used channel.</p>
+<div class="flow"><div class="box">32 raw reads</div><span class="arrow">→</span><div class="box">Clip checks<br>and mean</div><span class="arrow">→</span><div class="box">Calibrated<br>millivolts</div><span class="arrow">→</span><div class="box">Sensor-specific<br>conversion</div></div>
+<h3>Implement the acquisition sequence</h3>
+<ol>
+<li>Resolve the GPIO to an ADC1 channel; reject unsupported mappings.</li>
+<li>Create or reuse the shared ADC unit and channel calibration.</li>
+<li>Acquire 32 raw samples. If any acquisition fails, return an error.</li>
+<li>Mark the block clipped if any raw sample is ≤ 0 or ≥ 4,090.</li>
+<li>Calculate the integer mean and convert it using ADC calibration.</li>
+<li>Return the raw mean, millivolts and clipping flag to the sensor driver.</li>
+</ol>
+<pre>// Simplified outline; SDK error handling omitted here.
+int sum = 0;
+bool clipped = false;
+for (unsigned i = 0; i &lt; 32; ++i) {
+    const int raw = read_one_raw_sample(); // illustrative helper
+    clipped |= raw &lt;= 0 || raw &gt;= 4090;
+    sum += raw;
+}
+const int mean = sum / 32;
+// Use the ADC calibration API to obtain millivolts.</pre>
+<h3>Why average a block?</h3>
+<p>A mean reduces random sample noise. For independent, zero-mean noise, the standard deviation of the mean scales approximately as 1/√N: 32 samples can reduce it by about 5.7 times. Correlated noise, offset and sensor calibration errors do not follow that improvement.</p>
+<p>This is a fresh <strong>block average</strong> for each read, not a moving window across application cycles. Checking clipping before averaging prevents one saturated sample from disappearing inside an acceptable-looking mean.</p>
+<div class="note"><strong>Two calibrations:</strong> ADC calibration maps raw counts to pin voltage. Sensor calibration maps board voltage to pH or EC. A calibrated ADC does not mean the probe has been calibrated. Missing ADC calibration is an initialization failure.</div>
+<div class="exercise"><strong>Exercise:</strong> consider 31 raw readings of 2,000 and one of 4,095.<br><strong>Expected:</strong> integer mean = 2,065, but <code>clipped = true</code>. The sensor driver rejects the reading despite its plausible mean.</div>
+<p class="source">Read: src/hal/adc/adc.cpp · src/hal/adc/adc.h · src/driver/ph/ph.cpp · src/driver/ec/ec.cpp</p>
+<div class="footer"><span>Reactor firmware · ADC and filtering</span><span>5 / 11</span></div>
+</section>
+
+<section class="page" id="calibration">
+<div class="eyebrow">05 · Conversion algorithms</div>
+<h2>Calibration, compensation<br>and hysteresis</h2>
+<h3>pH: a line through two reference points</h3>
+<p>The pH driver uses voltages measured in pH 7 and pH 4 buffers. Its default estimates are 1,500 mV and 2,032.44 mV, with <code>calibrated = false</code>.</p>
+<pre>pH = 7 + 3 × (V − V7) / (V7 − V4)
+V = 1,766.22 mV, V7 = 1,500 mV, V4 = 2,032.44 mV
+pH = 7 + 3 × 266.22 / (−532.44) = 5.50</pre>
+<p>Measure stable reference voltages, populate <code>PhCalibration</code>, then call <code>sensor_manager::set_ph_calibration()</code> and check its return value. The driver accepts V7 strictly between 1,322 and 1,678 mV, and V4 strictly between 1,854 and 2,210 mV. These windows prevent a zero or reversed slope. Output must be finite and in pH 0–14. No pH temperature compensation is implemented.</p>
+<h3>EC: divider correction and temperature normalization</h3>
+<p>The EC input uses a 10 kΩ / 20 kΩ divider, so board voltage is pin voltage × 1.5. The driver converts to conductivity and normalizes to 25 °C using a manually supplied liquid temperature.</p>
+<pre>Vboard = Vpin × 1.5
+raw_EC = Vboard_mV / 164
+EC25 = raw_EC × K / [1 + 0.0185 × (T − 25)]
+
+At Vpin = 154.488 mV, K = 1 and T = 25 °C:
+Vboard = 231.732 mV → EC25 = 1.413 mS/cm
+At the same voltage and T = 30 °C: EC25 ≈ 1.293 mS/cm</pre>
+<p>Determine each correction factor from stable readings in the low and high standards: <code>K = reference_EC25 × [1 + 0.0185 × (T − 25)] / raw_EC</code>, using the reference value at 25 °C. Apply both through <code>set_ec_calibration()</code>; each must be strictly between 0.5 and 1.5. <code>set_ec_temperature()</code> accepts 0–40 °C. Settings are RAM-only.</p>
+<h3>Hysteresis: avoid rapid range switching</h3>
+<p>The previous range's factor gives a pre-compensation estimate. Above 2.5 mS/cm, choose the high factor; below 2.0 mS/cm, choose the low factor; between the thresholds, keep the current range. Use the chosen factor for EC25. The boundaries themselves do not force a switch.</p>
+<div class="exercise"><strong>Exercise:</strong> start in low range with both factors equal to 1; feed raw EC values 2.4 → 2.6 → 2.3 → 1.9.<br><strong>Expected:</strong> low → high → high → low. Default coefficients still produce <code>NeedsCalibration</code>, even when values look reasonable.</div>
+<p class="source">Read: src/driver/ph/ph.cpp · src/driver/ec/ec.cpp · src/common/system_config.h</p>
+<div class="footer"><span>Reactor firmware · Calibration algorithms</span><span>6 / 11</span></div>
+</section>
+
+<section class="page" id="data">
+<div class="eyebrow">06 · Data integrity and bounded memory</div>
+<h2>Explicit errors<br>and circular storage</h2>
+<p>A reading contains a value <em>and</em> its status. Raw counts and pin/board voltages help diagnostics. Unavailable values default to NaN; each record adds monotonic uptime and a sequence number.</p>
+<table><tr><th>Status</th><th>Meaning</th><th>Consumer behavior</th></tr>
+<tr><td>NotInitialized</td><td>Sensor is not ready</td><td>Show unavailable</td></tr>
+<tr><td>AdcError</td><td>Acquisition failed</td><td>Show unavailable</td></tr>
+<tr><td>VoltageOutOfRange / ValueOutOfRange</td><td>Input or converted value is invalid</td><td>Show an error; reject for control</td></tr>
+<tr><td>NeedsCalibration</td><td>Finite estimate available</td><td>Display with warning; FSM rejects</td></tr>
+<tr><td>Ok</td><td>Valid calibrated reading</td><td>Eligible for control if also fresh</td></tr></table>
+<h3>Preserve fresh failures</h3>
+<p>Construct a fresh result on every read. Store failures just like successes; never replace them with an older good value. <code>effective_status()</code> also rejects nonfinite or negative values that incorrectly claim Ok or NeedsCalibration. Serial and TFT consumers use shared validity helpers.</p>
+<h3>Store history in a fixed-size ring</h3>
+<p><code>Store</code> owns 60 records. The next write index wraps around at capacity, replacing the oldest record. Insertion and age lookup take constant time and require no heap allocation in the store.</p>
+<pre>// Core indexing used by Store:
+records_[next_] = {sensors, sampled_at_ms, ++sequence_};
+next_ = (next_ + 1) % capacity;
+if (count_ &lt; capacity) ++count_;
+
+// age = 0 means latest; first reject age &gt;= count_.
+index = (next_ + capacity - 1 - age) % capacity;</pre>
+<p><code>latest()</code> and <code>newest()</code> copy the selected record out, so callers do not hold references to slots that the next write might overwrite. An out-of-range lookup clears the output and returns false.</p>
+<div class="note">History is RAM-only and clears on reboot. Sixty records are roughly one minute at the current cadence, not an exact time window. The store and FSM assume one calling task; concurrent consumers need an ownership or synchronization design.</div>
+<div class="exercise"><strong>Exercise:</strong> push 65 records into an empty store, keeping record 65 as an ADC failure.<br><strong>Expected:</strong> size 60; newest sequence 65; oldest retained sequence 6; latest status is the failure, not record 64's valid value.</div>
+<p class="source">Read: src/common/sensor_data.h · src/application/data_store/data_store.{h,cpp} · src/test/display_test.cpp</p>
+<div class="footer"><span>Reactor firmware · Errors and ring buffers</span><span>7 / 11</span></div>
+</section>
+
+<section class="page" id="testing">
+<div class="eyebrow">07 · Testable hardware boundaries</div>
+<h2>Dependency injection<br>and deterministic simulation</h2>
+<p>Dependency injection supplies an operation from outside the code that uses it. The FSM accepts three function pointers, allowing identical state logic to control real outputs or test doubles.</p>
+<pre>// Host-only illustration; no physical hardware is accessed.
+bool pumps_on = false;
+bool power_on = false;
+bool fake_start() { pumps_on = true; return true; }
+bool fake_stop() { pumps_on = false; return true; }
+bool fake_power(bool on) { power_on = on; return true; }
+
+app::state_machine::Machine machine(
+    {fake_start, fake_stop, fake_power});
+machine.initialize(true); // Confirms off, then enters IDLE.</pre>
+<p>The production adapter injects real pump callbacks but a null power callback, which blocks START. Host fixtures inject all callbacks and controlled readiness inputs to exercise the full sequence.</p>
+<h3>A second seam: link-time HAL replacement</h3>
+<p>Host executables compile real application and driver code with fake implementations of HAL functions. Their CMake targets omit the real peripheral implementations. The same interface is preserved without a virtual class hierarchy.</p>
+<ol>
+<li>Define repeatable sensor inputs and a virtual clock.</li>
+<li>Record output calls and their order; simulate success or failure.</li>
+<li>Advance virtual time in fake acquisition, display and delay operations.</li>
+<li>Assert recovery, stale-value rejection and shutdown behavior.</li>
+</ol>
+<h3>Run the existing tests from the repository root</h3>
+<pre>cmake -S src/test -B build/host-tests
+cmake --build build/host-tests
+ctest --test-dir build/host-tests --output-on-failure
+ctest --test-dir build/host-tests -R '^fsm_' -V
+ctest --test-dir build/host-tests -R '^simulation_' -V</pre>
+<p>The current CMake file registers 42 cases across FSM, pumps, sensors, display/storage and simulation. Each integration scenario runs 90 application cycles, captures serial output and TFT pixels, and keeps pumps at zero. Generated traces and captures live under <code>build/host-tests/simulation/</code>.</p>
+<div class="note">Virtual delays are test inputs. The simulation does not emulate FreeRTOS, establish real-time deadlines, validate wiring, or model reactor chemistry. The count above describes registered tests; generating this guide is not a fresh test run.</div>
+<p class="source">Read: src/test/CMakeLists.txt · src/test/state_machine_test.cpp · src/test/system_simulation.cpp · docs/simulation.md</p>
+<div class="footer"><span>Reactor firmware · Dependency injection and tests</span><span>8 / 11</span></div>
+</section>
+
+<section class="page" id="display">
+<div class="eyebrow">08 · Memory-conscious output</div>
+<h2>Display strips<br>and DMA synchronization</h2>
+<p>The TFT path separates formatting, drawing and transfer. The display manager prepares text and status tones; the TFT driver draws glyphs; the LCD HAL sends RGB565 pixels over SPI to the ST7789 panel.</p>
+<div class="flow"><div class="box">Sensor record<br>and FSM state</div><span class="arrow">→</span><div class="box">Text rows<br>and colors</div><span class="arrow">→</span><div class="box">Pixel strip<br>renderer</div><span class="arrow">→</span><div class="box">SPI DMA<br>transfer</div></div>
+<h3>Render a strip instead of a full framebuffer</h3>
+<p>The screen is 240 × 240 pixels with two bytes per pixel. One 240 × 24 strip uses 11,520 bytes (11.25 KiB), compared with 115,200 bytes (112.5 KiB) for a full framebuffer. Ten strips cover the display.</p>
+<p>The renderer reuses a static strip to avoid placing that workspace on the task stack. The HAL owns a separate DMA-capable strip. Together these two pixel buffers use 22.5 KiB, plus other objects and SDK resources. The whole firmware is not allocation-free: LCD setup allocates DMA memory and a semaphore.</p>
+<h3>Respect buffer ownership during transfer</h3>
+<ol>
+<li>Clear and render a text row in the reusable pixel workspace.</li>
+<li>Copy it into the HAL's DMA-capable buffer.</li>
+<li>Submit the strip with <code>esp_lcd_panel_draw_bitmap()</code>.</li>
+<li>The transfer-completion interrupt signals a FreeRTOS semaphore.</li>
+<li>The task waits for that signal before reusing the DMA buffer.</li>
+</ol>
+<pre>Renderer → copy → DMA buffer → SPI transfer
+                                  ↓ completion interrupt
+Next strip ← task resumes ← semaphore signal</pre>
+<p>The wait has a configured 250 ms timeout. On failure, the display is disabled. After a timeout, the HAL retains its DMA buffer and semaphore because the peripheral may still reference them. Further display writes stop while monitoring continues.</p>
+<div class="note"><strong>DMA does not make this loop nonblocking.</strong> Hardware transfers are asynchronous internally, but the caller waits for each strip. A slow panel still extends the interval between samples. The panel is enabled after the first complete frame.</div>
+<div class="exercise"><strong>Exercise:</strong> run the faults integration scenario and inspect cycle 60, which injects display failure.<br><strong>Expected:</strong> telemetry reports the failure, later display writes cease, and sensor sampling continues through cycle 89.</div>
+<p class="source">Read: src/application/display_manager/display_manager.cpp · src/driver/tft/tft.cpp · src/hal/lcd/lcd.cpp</p>
+<div class="footer"><span>Reactor firmware · TFT memory and synchronization</span><span>9 / 11</span></div>
+</section>
+
+<section class="page" id="configuration">
+<div class="eyebrow">09 · Validation at boundaries</div>
+<h2>Defensive configuration<br>and feature extension</h2>
+<p>Defensive programming validates inputs where they enter a subsystem. Shared configuration expresses board-wide rules; drivers check device constraints; the HAL checks peripheral capabilities and SDK errors.</p>
+<table><tr><th>Boundary</th><th>Existing validation</th></tr>
+<tr><td>Shared pin ownership</td><td>Distinct pH/EC pins; no sensor/display/pump conflicts</td></tr>
+<tr><td>Display configuration</td><td>Distinct permitted pins and vertical offset 0–80</td></tr>
+<tr><td>Pump commands</td><td>Valid index; finite duty within 0–100%; readiness</td></tr>
+<tr><td>Sensor conversion</td><td>Clipping, finite voltages, physical output ranges</td></tr>
+<tr><td>Hardware operations</td><td>ESP-IDF return codes; supported ADC/GPIO mapping</td></tr>
+<tr><td>FSM input</td><td>Fresh calibrated readings and hardware readiness</td></tr></table>
+<h3>Why use more than one check?</h3>
+<p>A pin can support ADC operation yet already belong to a pump. A finite sensor value can lie outside the device's supported range. A valid calibrated sample can be too old for control. Each layer checks the information it owns.</p>
+<h3>Extension exercise: a future turbidity sensor</h3>
+<ol>
+<li>Confirm the sensor model, electrical interface and calibration method. Existing turbidity files are scaffolds, not working acquisition code.</li>
+<li>Add configuration and pin-ownership checks for that interface.</li>
+<li>Implement peripheral access in the HAL and physical-unit conversion in the driver. Return an explicit status on failure.</li>
+<li>Sample through the application and populate <code>Snapshot::turbidity</code>. Keep an uncalibrated estimate visibly marked.</li>
+<li>Register implementations in <code>main/CMakeLists.txt</code> and host targets.</li>
+<li>Test valid input, initialization failure, bad values, calibration status, display formatting and FSM rejection.</li>
+</ol>
+<p>Turbidity already participates in FSM readiness checks. Implementing its acquisition removes only one blocker; flow, interlock, calibration and power-control requirements still apply.</p>
+<div class="note"><strong>Separate measurements and derived values.</strong> The planned EC-based theoretical-pH result belongs in the application layer as a separate field. It must not overwrite electrode-measured pH or live in the EC hardware driver. No such calculation currently exists.</div>
+<div class="exercise"><strong>Exercise:</strong> configure pH to use GPIO4 in a host pin-conflict test.<br><strong>Expected:</strong> shared validation rejects it before ADC setup because GPIO4 is assigned to a pump.</div>
+<p class="source">Read: src/common/system_config.{h,cpp} · src/application/sensor_manager/sensor_manager.cpp · main/CMakeLists.txt</p>
+<div class="footer"><span>Reactor firmware · Configuration and extension</span><span>10 / 11</span></div>
+</section>
+
+<section class="page" id="practice">
+<div class="eyebrow">10 · Put the techniques into practice</div>
+<h2>Practice workflow<br>and source map</h2>
+<h3>A small, repeatable learning cycle</h3>
+<ol>
+<li><strong>Trace:</strong> choose a behavior, such as a failed pH read. Follow it through driver, manager, stored record, display and FSM.</li>
+<li><strong>Predict:</strong> write down the expected value/status, state, output calls and visible message.</li>
+<li><strong>Simulate:</strong> supply the input or failure in a host fixture. Change one condition at a time.</li>
+<li><strong>Verify:</strong> compare the result with your prediction and inspect the first failed assertion or trace entry.</li>
+<li><strong>Extend:</strong> make a small change in the owning layer, add a behavioral test, then rerun the relevant suite.</li>
+</ol>
+<table><tr><th>Technique</th><th>Start reading here, relative to repository root</th></tr>
+<tr><td>Layered orchestration</td><td><code>src/application/app.cpp</code><br><code>docs/architecture.md</code></td></tr>
+<tr><td>State machine / guards</td><td><code>src/application/state_machine/state_machine.cpp</code><br><code>docs/state_machine.md</code></td></tr>
+<tr><td>Pump sequencing / PWM</td><td><code>src/application/pump_manager/pump_manager.cpp</code><br><code>src/hal/pwm/pwm.cpp</code></td></tr>
+<tr><td>ADC, pH and EC</td><td><code>src/hal/adc/adc.cpp</code><br><code>src/driver/ph/ph.cpp</code> · <code>src/driver/ec/ec.cpp</code></td></tr>
+<tr><td>Errors and ring buffer</td><td><code>src/common/sensor_data.h</code><br><code>src/application/data_store/data_store.cpp</code></td></tr>
+<tr><td>Simulation and injection</td><td><code>src/test/system_simulation.cpp</code><br><code>src/test/state_machine_test.cpp</code></td></tr>
+<tr><td>Strip rendering / DMA</td><td><code>src/driver/tft/tft.cpp</code><br><code>src/hal/lcd/lcd.cpp</code></td></tr>
+<tr><td>Configuration and build</td><td><code>src/common/system_config.cpp</code><br><code>main/CMakeLists.txt</code> · <code>src/test/CMakeLists.txt</code></td></tr></table>
+<h3>Build board firmware after host verification</h3>
+<p>Activate the installed ESP-IDF environment, then use the isolated ESP32-S3 N16R8 configuration:</p>
+<pre>idf.py -B build/esp32s3 \
+  -D IDF_TARGET=esp32s3 \
+  -D SDKCONFIG=build/esp32s3/sdkconfig \
+  -D SDKCONFIG_DEFAULTS=sdkconfig.defaults.esp32s3 build</pre>
+<p class="small">This command builds firmware only. Hardware testing is separate. Host success does not prove physical ADC accuracy, pump flow, interlock response, SPI timing or watchdog behavior.</p>
+<p class="source">Basis: local working-tree source and documentation inspected on 27 October 2026. Future changes may alter behavior. Editable companion: docs/reactor-techniques-guide.html.</p>
+<div class="footer"><span>Reactor firmware · Practical workflow and references</span><span>11 / 11</span></div>
+</section>
+</body>
+</html>

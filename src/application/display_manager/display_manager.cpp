@@ -11,6 +11,7 @@ using display_data::Tone;
 bool ready = false;
 constexpr std::uint64_t stale_after_ms = 3000;
 
+// Format one sensor value and its status into two display rows.
 void reading(display_data::Row& value_row, display_data::Row& status_row,
              const char* name, const char* unit, const sensor_data::Reading& sample)
 {
@@ -38,14 +39,16 @@ void reading(display_data::Row& value_row, display_data::Row& status_row,
 }
 } // namespace
 
-display_data::Frame format(const sensor_data::Record& record, std::uint64_t now_ms)
+// Build TFT text rows from a record, its age, and optional FSM status.
+display_data::Frame format(const sensor_data::Record& record, std::uint64_t now_ms,
+                          const char* state, const char* reason)
 {
     display_data::Frame frame{};
     const bool empty = record.sequence == 0;
     const bool stale = !empty && (now_ms < record.sampled_at_ms ||
                                  now_ms - record.sampled_at_ms > stale_after_ms);
     std::snprintf(frame[0].text.data(), frame[0].text.size(), "%s",
-                  empty ? "WAITING FOR DATA" : stale ? "STALE DATA" : "REACTOR SENSORS");
+                  empty ? "WAITING FOR DATA" : stale ? "STALE DATA" : state ? state : "REACTOR SENSORS");
     frame[0].tone = empty || stale ? Tone::Warning : Tone::Normal;
     std::snprintf(frame[1].text.data(), frame[1].text.size(), "%llu S",
                   static_cast<unsigned long long>(record.sampled_at_ms / 1000));
@@ -58,10 +61,11 @@ display_data::Frame format(const sensor_data::Record& record, std::uint64_t now_
     } else {
         std::snprintf(frame[8].text.data(), frame[8].text.size(), "T -- C MANUAL");
     }
-    std::snprintf(frame[9].text.data(), frame[9].text.size(), "EC AT 25 C");
+    std::snprintf(frame[9].text.data(), frame[9].text.size(), "%s", reason ? reason : "EC AT 25 C");
     return frame;
 }
 
+// Validate pin ownership and initialize the TFT driver.
 bool init(const system_config::DisplayConfig& config, const system_config::SensorConfig& sensors)
 {
     ready = false;
@@ -73,11 +77,13 @@ bool init(const system_config::DisplayConfig& config, const system_config::Senso
     return ready;
 }
 
-bool update(const sensor_data::Record& record, std::uint64_t now_ms)
+// Draw the latest record; disable further updates after a failure.
+bool update(const sensor_data::Record& record, std::uint64_t now_ms,
+            const char* state, const char* reason)
 {
     if (!ready) return false;
     // Latch a failed display off until reboot. Sampling/logging continue.
-    ready = drivers::tft::show(format(record, now_ms));
+    ready = drivers::tft::show(format(record, now_ms, state, reason));
     return ready;
 }
 } // namespace app::display_manager

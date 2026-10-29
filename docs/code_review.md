@@ -73,7 +73,8 @@ features are ready. Startup telemetry now states the missing required features.
   screen layout, sensor wiring, and flow accuracy require board testing.
 - The stale-data label only updates when code redraws the display; it is not an
   independent watchdog. A failed display can retain its previous image.
-- The state machine, emergency STOP/interlocks, and electrolysis control remain
-  unimplemented; the main loop does not start pumps.
+- Update on 2026-10-27: the software FSM is implemented and simulated. Physical
+  emergency STOP/interlocks and electrolysis control remain unimplemented;
+  production START remains blocked. See [the FSM](state_machine.md).
 
 See [development progress](progress.md) for the latest verification and next work.

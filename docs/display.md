@@ -72,7 +72,7 @@ pixel data, inversion enabled, zero vertical offset. Some modules need
 ## What appears on screen
 
 ```text
-REACTOR SENSORS
+IDLE
 12 S
 PH 7.00
 NEEDS CALIBRATION
@@ -81,13 +81,17 @@ NEEDS CALIBRATION
 TURB -- NTU
 NOT READY
 T 25.0 C MANUAL
-EC AT 25 C
+VERIFY PUMP FLOWS
 ```
 
 The second row is the sample's time since boot. Values above are examples,
 not simulated data sent by the firmware. Green means calibrated, yellow means
 an estimate or unavailable sensor, and red means a reading error. The text
 also states the status so color is not the only indication.
+
+The top row shows the FSM state during live monitoring, and the last row shows
+the first blocked-start reason or fault. EC still reports conductivity normalized
+to 25 C. For the default configuration, IDLE/VERIFY PUMP FLOWS is expected.
 
 Turbidity has a reserved data field but its acquisition driver is still a
 scaffold, so it displays `--` and `NOT READY`. The temperature is a manual EC

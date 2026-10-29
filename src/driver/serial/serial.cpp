@@ -4,6 +4,7 @@
 
 namespace drivers::serial {
 
+// Forward a telemetry message to the serial HAL.
 void write_line(const char* message)
 {
     hal::serial::write_line(message);

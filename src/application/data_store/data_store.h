@@ -11,11 +11,15 @@ namespace app::data_store {
 class Store {
 public:
     static constexpr std::size_t capacity = 60;
+    // Reset history indexes and sample numbering.
     void clear();
+    // Copy a timestamped sample into history, replacing the oldest if full.
     void push(const sensor_data::Snapshot& sensors, std::uint64_t sampled_at_ms);
     // Copy out to keep callers independent of ring-buffer overwrite.
     bool latest(sensor_data::Record& out) const;
+    // Copy a record by age, where zero selects the newest sample.
     bool newest(std::size_t age, sensor_data::Record& out) const;
+    // Return the number of records currently retained.
     std::size_t size() const { return count_; }
 
 private:

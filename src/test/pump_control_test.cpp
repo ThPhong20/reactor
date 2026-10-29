@@ -21,6 +21,7 @@ int fail_write = -1;
 int fail_stop = -1;
 bool fail_timer = false;
 
+// Fail the test immediately when a required condition is false.
 void require(bool condition, const char* message)
 {
     if (!condition) {
@@ -29,6 +30,7 @@ void require(bool condition, const char* message)
     }
 }
 
+// Load arbitrary test duties without changing pump outputs.
 void set_operating_duties()
 {
     // Arbitrary test duties, not pump flow calibration values.
@@ -37,6 +39,7 @@ void set_operating_duties()
     require(pumps::set_operating_duty(Pump::Outlet2, 30.0f), "set outlet 2 duty");
 }
 
+// Verify that all simulated pump duties are zero.
 void require_stopped()
 {
     require(outputs == std::array<float, 3>{0, 0, 0}, "all outputs must be off");
@@ -45,12 +48,14 @@ void require_stopped()
 
 // Fake hardware boundary: test the real manager and driver without running motors.
 namespace hal::pwm {
+// Check the requested PWM frequency and simulate timer initialization.
 bool init(std::uint32_t frequency_hz)
 {
     require(frequency_hz == 10000, "use measured calibration PWM frequency");
     return !fail_timer;
 }
 
+// Simulate channel setup at zero duty or an injected failure.
 bool configure_channel(unsigned channel, int gpio)
 {
     require(channel < 3, "unexpected channel");
@@ -63,6 +68,7 @@ bool configure_channel(unsigned channel, int gpio)
     return true;
 }
 
+// Simulate a duty write that may partially apply before failing.
 bool set_duty(unsigned channel, float percent)
 {
     require(channel < configured, "write to unconfigured channel");
@@ -72,6 +78,7 @@ bool set_duty(unsigned channel, float percent)
     return static_cast<int>(channel) != fail_write;
 }
 
+// Simulate stopping a channel and count shutdown attempts.
 bool stop(unsigned channel)
 {
     require(channel < configured, "stop of unconfigured channel");
@@ -84,6 +91,7 @@ bool stop(unsigned channel)
 }
 } // namespace hal::pwm
 
+// Run the requested test scenario and return its result.
 int main(int argc, char** argv)
 {
     require(argc == 2, "provide a scenario");
@@ -118,9 +126,11 @@ int main(int argc, char** argv)
     const auto config = system_config::default_pump_config();
     require(config[0].target_flow_ml_min == 70 && config[1].target_flow_ml_min == 49 &&
             config[2].target_flow_ml_min == 21, "flow target mapping");
-    require(config[0].duty_percent == 90 && config[1].duty_percent == 0 &&
-            config[2].duty_percent == 0, "store measured inlet duty; leave outlets uncalibrated");
-    require(!pumps::start_all() && writes == 0, "unconfigured duties must not start any pump");
+    require(config[0].duty_percent == 90 && config[1].duty_percent == 65 &&
+            config[2].duty_percent == 42, "store all three measured operating duties");
+    require(pumps::operating_duties_ready() && writes == 0, "saved duties are ready without starting pumps");
+    require(pumps::set_operating_duty(Pump::Outlet2, 0), "clear one duty for preflight check");
+    require(!pumps::start_all() && writes == 0, "incomplete duties must not start any pump");
     set_operating_duties();
     require_stopped();
 
@@ -153,11 +163,8 @@ int main(int argc, char** argv)
         require(pumps::init(), "reinitialization must stop existing outputs");
         require_stopped();
         require(configured == 3, "reinit must not allocate channels again");
-        require(!pumps::start_all(), "uncalibrated outlets must still block start after reinit");
-        require(pumps::set_operating_duty(Pump::Outlet1, 40), "set outlet 1 test duty");
-        require(pumps::set_operating_duty(Pump::Outlet2, 30), "set outlet 2 test duty");
-        require(pumps::start_all(), "start after setting outlet duties");
-        require(outputs == std::array<float, 3>{90, 40, 30}, "apply measured inlet duty from defaults");
+        require(pumps::start_all(), "explicit start applies restored defaults");
+        require(outputs == std::array<float, 3>{90, 65, 42}, "apply all measured duties from defaults");
         require(pumps::stop_all(), "stop after checking calibrated inlet default");
         require_stopped();
         return 0;

@@ -2,30 +2,35 @@
 
 namespace system_config {
 
+// Return the default DevKitC-1 TFT wiring and panel settings.
 DisplayConfig default_display_config()
 {
     return {};
 }
 
+// Return the monitoring interval and serial-logging setting.
 RuntimeConfig default_config()
 {
     // Baseline runtime configuration values.
     return RuntimeConfig{1000, true};
 }
 
+// Return pump pins, target flows, and saved operating duties.
 PumpConfigs default_pump_config()
 {
     // Target flow balance: inlet 70 = outlet 49 + outlet 21 mL/min.
     // User measurement: inlet delivered 70 mL/min at 90% duty, 10 kHz, 10-bit PWM.
-    // This is one measured point, not a linear flow-to-duty formula. Measure each
-    // outlet independently; do not assume 49 and 21 mL/min mean 49% and 21% duty.
+    // User measurement: outlet 1 delivered 49 mL/min at 65% duty.
+    // User measurement: outlet 2 delivered 21 mL/min at 42% duty.
+    // These operating points do not define a linear flow-to-duty formula.
     // Saved duties are used by start_all(); initialization always sets outputs off.
     // Fields: GPIO, target flow in mL/min, operating duty in percent.
     return {{{4, 70.0f, 90.0f},  // Inlet: measured operating duty.
-             {5, 49.0f, 0.0f},   // Outlet 1: duty awaiting calibration.
-             {6, 21.0f, 0.0f}}}; // Outlet 2: duty awaiting calibration.
+             {5, 49.0f, 65.0f},  // Outlet 1: measured operating duty.
+             {6, 21.0f, 42.0f}}}; // Outlet 2: measured operating duty.
 }
 
+// Return pH/EC wiring, calibration defaults, and manual temperature.
 SensorConfig default_sensor_config()
 {
     // ESP32-S3 DevKitC-1 N16R8: use GPIO numbers, not the XIAO D0 label.
@@ -36,6 +41,7 @@ SensorConfig default_sensor_config()
     return {{1, {}}, {2, 1.5f, 25.0f, {}}};
 }
 
+// Check enabled TFT pins and vertical offset against board limits.
 bool valid_display_config(const DisplayConfig& display)
 {
     if (!display.enabled) {
@@ -57,6 +63,7 @@ bool valid_display_config(const DisplayConfig& display)
     return display.y_offset >= 0 && display.y_offset <= 80;
 }
 
+// Reject shared sensor pins and sensor/display/pump pin conflicts.
 bool valid_pin_assignments(const SensorConfig& sensors, const DisplayConfig& display)
 {
     // Check sensor ownership even if a display setting is invalid: its selected
