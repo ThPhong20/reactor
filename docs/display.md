@@ -40,30 +40,31 @@ the history. There is no wall-clock timestamp or history-browsing UI yet.
 
 ## Display wiring
 
-Use actual ESP32 GPIO numbers, not XIAO D-pin labels.
+Wiring updated on 2026-11-01. Use actual ESP32 GPIO numbers, not XIAO D-pin labels.
 
 | TFT signal | DevKitC-1 GPIO |
 | --- | --- |
-| SCL / SCLK | 12 |
-| SDA / MOSI | 11 |
-| DC | 10 |
-| RES / RESET | 9 |
+| SCL / SCLK | 7 |
+| SDA / MOSI | 9 |
+| DC | 2 |
+| RES / RESET | 1 |
 | CS | Not exposed on this seven-pin module |
 | GND | Common ground |
 
 Use 3.3 V logic and power/backlight connections appropriate to the module,
 as in the bench setup. Backlight is not controlled by a GPIO. SDA/SCL on this
 TFT are **SPI**, not I2C. SPI2 is dedicated to this display because it has no CS.
-GPIO1/2 remain pH/EC inputs, and GPIO4/5/6 remain pump outputs.
+GPIO8/10 are pH/EC inputs, GPIO11 is reserved for turbidity, and GPIO4/5/6
+remain pump outputs.
 
 `DisplayConfig` in `src/common/system_config.h` holds the pin mapping and
 panel settings; `default_display_config()` enables it by default. Set `enabled`
 false to run without a TFT. Shared configuration restricts display pins to
-7..18 on this board and rejects duplicate pins. Both application managers check
+GPIO1, GPIO2, and GPIO7..18 on this board and rejects duplicate pins. Both application managers check
 the same sensor/display maps for sensor/pump/display conflicts before touching
 GPIOs. The LCD HAL repeats the display configuration check and checks SDK pin
-capabilities. Update shared pin reservations when adding required turbidity
-acquisition or other peripherals.
+capabilities. Shared checks already reserve the configured turbidity pin; update
+reservations when adding other peripherals.
 
 Panel settings match the bench: SPI mode 3, 20 MHz, RGB565 with little-endian
 pixel data, inversion enabled, zero vertical offset. Some modules need

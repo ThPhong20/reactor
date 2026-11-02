@@ -1,4 +1,104 @@
-# Code review — 2026-10-26
+# Code review
+
+## Current review — 2026-10-31
+
+Scope: all project C++ sources and headers under `src/`, including tests and
+unfinished turbidity modules; build definitions and the generated N16R8 settings.
+Relevant ESP-IDF 6.0.1 startup, SPI/LCD, and watchdog behavior was also checked.
+The layer boundaries are clear. The firmware is a monitoring prototype with a
+tested FSM, not yet a complete unattended reactor controller.
+
+### Confirmed defects corrected
+
+| Priority | Location | Problem and correction |
+| --- | --- | --- |
+| High | `src/common/sensor_data.h` | The current header lacked `effective_status()`, breaking compilation in the FSM, display, and telemetry. Restored the helper and numeric checks; NaN, infinity, and negative values cannot be accepted merely because status says OK. Preserved the descriptive comments. |
+| Medium | `src/driver/ec/ec.cpp` | Accepted factors `low_k=1.4`, `high_k=0.6` made a constant raw EC of 2 alternate between 1.2 and 2.8. Enter the high range only when its corrected result will not immediately trigger a switch back. The regression test failed before the fix and passes now. See the conversion details in [sensors](sensors.md). |
+| Medium | `src/application/app.cpp` | Timestamping after both reads hid the age of an earlier reading if a later read stalled. Timestamp the acquisition start. A simulated 4-second EC delay now produces a stale-data warning and recovers on the next normal sample. This test also failed before the fix. |
+
+The FSM and TFT now share `sensor_data::is_fresh()` and one 3-second age limit,
+reducing the risk of different validity rules. Removed unused SDK headers and
+clarified application-task ownership. Existing shutdown behavior and startup
+restrictions are retained.
+
+### Open findings, in priority order
+
+1. **High, before powered reactor operation: control can stall behind I/O.**
+   `app::run()` samples sensors, evaluates the FSM, draws the TFT, logs, then
+   delays 1000 ms in one task. It cannot detect faults while blocked elsewhere.
+   The 250 ms LCD semaphore timeout bounds only the completion wait after
+   `esp_lcd_panel_draw_bitmap()` returns. The installed SDK's
+   `components/esp_lcd/spi/esp_lcd_panel_io_spi.c` contains SPI waits using
+   `portMAX_DELAY`; the complete display call has no proven 250 ms bound.
+   Current production START remains blocked, which limits present exposure.
+2. **High, before unattended operation: application watchdog management is absent.**
+   `hal/timers_watchdog` only provides time and delay. The generated configuration
+   monitors idle tasks with a 5-second task watchdog and has panic disabled.
+   There is no application task subscription/feed. A blocked application can
+   leave idle tasks running, so idle monitoring does not establish application
+   liveness. See [ESP-IDF watchdog semantics](https://docs.espressif.com/projects/esp-idf/en/v6.0.1/esp32s3/api-reference/system/wdts.html).
+3. **High integration gap: required inputs and real output confirmation are missing.**
+   Turbidity remains a scaffold; flow verification/interlocks remain false and
+   the PSU callback is absent. Keep START blocked. Manual pump APIs bypass the
+   FSM and are only suitable for controlled calibration until an operator mode
+   owns them. SDK success is not proof of physical pump stoppage or PSU state.
+4. **Medium, before adding tasks: shared state is not thread-safe.**
+   FSM, history, pump/sensor managers, calibration, and renderer buffers assume
+   one owner task. A future UI must not directly call these APIs concurrently.
+   Use copied messages and a single control owner; do not lock the whole system
+   around blocking LCD calls.
+5. **Medium validation gaps:** real stack headroom, response times, reset behavior,
+   ADC noise, flow accuracy, and calibration remain unmeasured. The current main
+   task stack is 3584 bytes. Large display buffers are static/DMA allocated,
+   but this does not prove sufficient stack margin. Capture the stack high-water
+   mark and worst-case timings on the board. EC temperature is manual; EC cannot
+   yet produce theoretical pH. Calibration and history are not persistent.
+
+### FreeRTOS and FSM assessment
+
+FreeRTOS is already running: ESP-IDF calls `app_main()` from its main task,
+`vTaskDelay()` yields that task, and the LCD completion ISR correctly uses
+`xSemaphoreGiveFromISR()`. There are no separate application control, sensor,
+or display tasks yet. Delaying after work makes the sample period longer than
+1000 ms. Host simulation does not execute the RTOS kernel.
+
+The FSM's guarded startup, explicit flow confirmation, 60-second priming timeout,
+power-off-before-pump-stop order, fault latch, and explicit reset are covered by
+tests. STOP remains available after a fault. RESET intentionally requires full
+readiness, so incomplete hardware cannot reset through this API. STOPPING is a
+synchronous transition, not a timed shutdown state; future PSU callbacks must
+either confirm completion within a bounded time or use explicit completion events.
+
+For the next RTOS implementation, retain the existing app/driver/HAL boundaries:
+
+- A control task exclusively owns the FSM and actuator commands. Use periodic
+  scheduling and bounded event processing, independent of display and sampling.
+  Define the required response deadline from the hardware before choosing its period.
+- A sensor task owns ADC access and calibration, and publishes copied, timestamped
+  snapshots. Queue calibration requests to this owner.
+- A lower-priority output task owns TFT/logging and consumes copied status.
+  A slow screen must not block control; use bounded queues and explicit overflow rules.
+- Supervise actual task progress with a watchdog. Validate hardware output behavior
+  during reset and keep physical emergency shutdown independent of software scheduling.
+
+This is a proposed task split, not implemented by this review. The reviewed
+[ESP-IDF FreeRTOS documentation](https://docs.espressif.com/projects/esp-idf/en/v6.0.1/esp32s3/api-reference/system/freertos_idf.html)
+describes the task/ISR APIs; the ownership and deadline recommendations above
+follow from this project's shared state and blocking call paths.
+
+### Verification
+
+- 50 host tests passed: 20 FSM, 11 pump, 9 sensor, 7 storage/display, 3 integration simulations.
+- All 50 passed with AddressSanitizer, LeakSanitizer, and UndefinedBehaviorSanitizer.
+  Leak checks required running outside the ptrace-based sandbox.
+- ESP-IDF 6.0.1 N16R8 build passed without compiler warnings/errors.
+- Added FSM coverage for missing output callbacks, failed power-off before START,
+  clock rollback during priming, and loss of pump readiness while running.
+- Reviewed pH interpolation, EC compensation, PWM scaling, ADC clipping, history
+  rollover, display bounds, and DMA-buffer lifetime. No additional confirmed
+  defects were found in those paths; host tests do not validate hardware behavior.
+
+## Earlier review — 2026-10-26
 
 ## Assessment
 
@@ -66,7 +166,8 @@ features are ready. Startup telemetry now states the missing required features.
 ## Remaining limits
 
 - Required turbidity acquisition and theoretical-pH calculation are pending.
-- pH/EC calibration and outlet pump duty measurements remain necessary.
+- pH/EC calibration and combined pump-flow verification remain necessary;
+  individual operating duties are now measured.
 - Calibration settings and sample history are RAM-only.
 - The scheduler waits after work, so updates are approximately once per second.
 - Display transfer/error handling is tested through a fake HAL. Real SPI/DMA,
@@ -78,3 +179,11 @@ features are ready. Startup telemetry now states the missing required features.
   production START remains blocked. See [the FSM](state_machine.md).
 
 See [development progress](progress.md) for the latest verification and next work.
+
+## Follow-up review — 2026-10-30
+
+A missing common sensor-validation helper and misleading READY status after STOP
+were corrected. Display layout assertions were restored. The 44-test suite passes
+normally and with memory/undefined-behavior checks; the N16R8 firmware builds.
+See [hardware readiness](hardware_readiness.md) for findings and outstanding
+electrical/interface checks. Full reactor operation remains unavailable.

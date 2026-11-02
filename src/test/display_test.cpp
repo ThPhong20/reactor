@@ -121,7 +121,7 @@ int main(int argc, char** argv)
         auto config = system_config::default_display_config();
         config.enabled = false;
         require(!display::init(config), "disabled config");
-        for (int pin : {1, 2, 4, 5, 6, -1, 11, 19, 26, 35}) {
+        for (int pin : {0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, -1, 19, 26, 35}) {
             config = system_config::default_display_config();
             config.dc = pin;
             require(!display::init(config), "reject reserved/duplicate/unset pin");
@@ -133,15 +133,20 @@ int main(int argc, char** argv)
         }
         config = system_config::default_display_config();
         auto sensors = system_config::default_sensor_config();
-        sensors.ec.gpio = 7;
-        config.dc = 7;
+        // Ownership must honor custom maps; ADC support is checked by its HAL.
+        sensors.ec.gpio = 12;
+        config.dc = 12;
         require(!display::init(config, sensors), "honor custom sensor pin assignments");
         config.enabled = false;
         require(system_config::valid_pin_assignments(sensors, config), "disabled TFT releases its pins");
         require(init_calls == 0, "invalid config must not touch hardware");
         require(!display::update(record, 1000) && writes == 0, "no output before init");
         config.enabled = true;
-        config.dc = 8;
+        config.dc = 13;
+        sensors.turbidity_gpio = 13;
+        require(!display::init(config, sensors) && init_calls == 0,
+                "honor custom turbidity reservation before touching display hardware");
+        sensors.turbidity_gpio = 11;
         require(display::init(config, sensors) && init_calls == 1, "allow nonconflicting custom pins");
         return 0;
     }

@@ -93,11 +93,14 @@ sensor_data::Reading read()
     // raw EC = board_mV / 164; EC25 = raw EC * K / (1 + 0.0185 * (T - 25)).
     const float raw_ec = result.board_mv / 164.0f;
     const auto& cal = settings.calibration;
-    const float previous = raw_ec * (high_range ? cal.high_k : cal.low_k);
-    // Hysteresis prevents repeatedly switching factors around 2 mS/cm.
+    const float low_ec = raw_ec * cal.low_k;
+    const float high_ec = raw_ec * cal.high_k;
+    // Keep the vendor's 2.0/2.5 thresholds, but only enter the high range
+    // when its result would not immediately switch back on the next read.
+    // Otherwise differing K factors can make a constant input oscillate.
     bool next_high = high_range;
-    if (previous > 2.5f) next_high = true;
-    else if (previous < 2.0f) next_high = false;
+    if (!high_range && low_ec > 2.5f && high_ec >= 2.0f) next_high = true;
+    else if (high_range && high_ec < 2.0f) next_high = false;
     const float factor = next_high ? cal.high_k : cal.low_k;
     const float value = raw_ec * factor / (1.0f + 0.0185f * (settings.temperature_c - 25.0f));
     if (!std::isfinite(value) || value < 0.0f || value > 20.0f) {

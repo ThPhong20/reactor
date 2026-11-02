@@ -8,8 +8,8 @@ application, device-driver, and ADC HAL layers.
 
 | Sensor | Supply | Signal connection | ADC input |
 | --- | --- | --- | --- |
-| SEN0161-V2 pH | 3V3 and common GND | Board A directly to GPIO1 | ADC1 channel 0 |
-| DFR0300 V2 EC, K=1 | 5V and common GND | Board A through the divider below to GPIO2 | ADC1 channel 1 |
+| SEN0161-V2 pH | 3V3 and common GND | Board A directly to GPIO8 | ADC1 channel 7 |
+| DFR0300 V2 EC, K=1 | 5V and common GND | Board A through the divider below to GPIO10 | ADC1 channel 9 |
 
 Use the GPIO numbers printed on the DevKitC-1. The older standalone tests used
 XIAO D0/GPIO1 for each sensor separately; the combined firmware uses two inputs.
@@ -19,7 +19,7 @@ and conflicts with the configured pump pins before configuring ADC inputs.
 EC divider, matching the bench test:
 
 ```text
-EC A ---- 10 kOhm ----+---- GPIO2
+EC A ---- 10 kOhm ----+---- GPIO10
                      |
                   20 kOhm
                      |
@@ -35,6 +35,16 @@ ranges are 0..3.0 V for [SEN0161-V2](https://wiki.dfrobot.com/sen0161-v2) and
 `default_sensor_config()` in `src/common/system_config.cpp` contains the pin
 mapping, EC divider gain, manual temperature, and calibration settings. Both
 sensor calibration flags start false; default coefficients are estimates.
+
+## Reserved turbidity input
+
+GPIO11 (ADC2 channel 0) is reserved in `SensorConfig::turbidity_gpio`.
+Pin ownership checks include this reservation even before acquisition is enabled.
+The ADC HAL creates ADC1/ADC2 units on demand and keeps their calibration handles
+separate. Current pH/EC sampling uses ADC1; no application code configures or reads
+turbidity yet, so it remains unavailable on the TFT and in telemetry. Verify the
+OEM board output voltage and required divider before connecting AO; an NTU
+conversion requires measured calibration data.
 
 ## Runtime workflow
 
@@ -93,10 +103,15 @@ raw_EC = board_mV / 164
 EC25 = raw_EC * K / (1 + 0.0185 * (temperature_C - 25))
 ```
 
-This follows [DFRobot_EC](https://github.com/DFRobot/DFRobot_EC). Separate low/high
-K factors use hysteresis: switch high above 2.5 and low below 2.0 mS/cm, evaluated
-using the previous factor before temperature compensation. Values above the
-supported 20 mS/cm limit are unavailable.
+The voltage conversion and temperature correction follow
+[DFRobot_EC](https://github.com/DFRobot/DFRobot_EC/blob/master/DFRobot_EC.cpp).
+Range selection includes an additional stability guard: switch high when the
+low-factor result exceeds 2.5 and the high-factor result is at least 2.0 mS/cm;
+switch low when the high-factor result falls below 2.0. Evaluate these before
+temperature correction. This prevents unequal factors from repeatedly switching
+back and forth at a steady voltage. Range changes can still produce a step in
+the reported value; verify calibration around the transition on hardware.
+Values above the supported 20 mS/cm limit are unavailable.
 
 Use the [manufacturer's two EC standards](https://wiki.dfrobot.com/dfr0300/docs/20349):
 1.413 mS/cm and 12.88 mS/cm, specified at 25 C. For each stable measurement:

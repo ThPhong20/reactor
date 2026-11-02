@@ -46,8 +46,8 @@ Device drivers own device-specific behavior. Application code should use these
 interfaces rather than call peripheral SDK functions directly. Turbidity has
 driver and application scaffolds with review comments, but no acquisition code.
 They are not registered in `main/CMakeLists.txt` or called by the application yet.
-The sensor model, electrical interface, pin assignment, and calibration method
-must be confirmed before implementation. INA226 remains a planned addition
+GPIO11 (ADC2 channel 0) is reserved for turbidity in `SensorConfig`. Its board
+voltage range, divider, and calibration method must be confirmed before acquisition. INA226 remains a planned addition
 without source files.
 
 ## Hardware abstraction layer
@@ -56,7 +56,7 @@ without source files.
 | --- | --- |
 | `timers_watchdog` | `freertos/task.h`, `esp_timer.h`, `esp_task_wdt.h` |
 | `pwm` | `driver/ledc.h` |
-| `adc` | Shared ADC1, 32-sample averages, `adc_oneshot.h`, `adc_cali_scheme.h` |
+| `adc` | ADC1/ADC2 oneshot units, 32-sample averages, `adc_oneshot.h`, `adc_cali_scheme.h` |
 | `serial` | `driver/uart.h`, configured ESP-IDF logging console |
 | `lcd` | SPI2, `esp_lcd` ST7789, DMA strip allocation/completion |
 
@@ -90,7 +90,7 @@ The PWM HAL uses LEDC low-speed timer 0, channels 0..2, at 10 kHz with 10-bit du
 resolution. Shared configuration stores pin mappings, flow targets, and adjustable
 duties. The inlet's measured operating point is 70 mL/min at 90% duty; outlet 1
 delivers 49 mL/min at 65% duty. Outlet 2 delivers 21 mL/min at 42% duty. See [pump control](pumps.md).
-pH uses GPIO1 directly; EC uses GPIO2 through the bench test's 10k/20k divider.
+pH uses GPIO8 directly; EC uses GPIO10 through the bench test's 10k/20k divider.
 The drivers target SEN0161-V2 and DFR0300 V2 K=1. Liquid calibration measurements
 are still needed; default coefficients are explicitly marked as estimates.
 See [sensor acquisition](sensors.md). I2C addresses, interlock polarity, and
@@ -114,7 +114,7 @@ Sensor calibration/temperature setters are C++ APIs with RAM-only updates; NVS
 and serial calibration commands remain pending. FSM transitions are implemented;
 physical safety interlocks, turbidity, and INA226 acquisition remain unimplemented.
 
-The TFT is GMT130/ST7789 240x240 with SCLK/MOSI/DC/RESET on GPIO12/11/10/9.
+The TFT is GMT130/ST7789 240x240 with SCLK/MOSI/DC/RESET on GPIO7/9/2/1.
 Storage includes a turbidity field that remains unavailable until acquisition
 is implemented. The 60-record history is RAM-only and resets at reboot.
 See [sensor storage and TFT](display.md) for ownership, wiring, and failure handling.

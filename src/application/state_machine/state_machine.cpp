@@ -46,8 +46,7 @@ Reason Machine::start_blocker(const Inputs& in) const
     if (!in.pumps_ready || !outputs_.start_pumps || !outputs_.stop_pumps) return Reason::PumpUnavailable;
     if (!in.duties_ready) return Reason::PumpDutiesMissing;
     if (!in.flows_verified) return Reason::FlowCalibrationMissing;
-    if (!in.sample.sequence || in.now_ms < in.sample.sampled_at_ms ||
-        in.now_ms - in.sample.sampled_at_ms > max_sample_age_ms) return Reason::StaleSensors;
+    if (!sensor_data::is_fresh(in.sample, in.now_ms)) return Reason::StaleSensors;
     const sensor_data::Reading* readings[] = {&in.sample.sensors.ph, &in.sample.sensors.ec,
                                             &in.sample.sensors.turbidity};
     for (const auto* reading : readings) {
@@ -110,7 +109,8 @@ bool Machine::handle(Event event, const Inputs& in)
         state_ = State::Idle;
         if (was_fault) state_ = State::Fault;
         else if (previous_state == State::Init) state_ = State::Init;
-        if (!was_fault) reason_ = Reason::None;
+        // Stopped outputs do not imply readiness to start again.
+        if (!was_fault) reason_ = state_ == State::Idle ? start_blocker(in) : Reason::None;
         if (in.external_fault && !was_fault) {
             state_ = State::Fault;
             reason_ = Reason::ExternalFault;

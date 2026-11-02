@@ -1,6 +1,6 @@
 # Host system simulation
 
-Run date: 2026-10-29. This is a software integration simulation of the current
+Run date: 2026-10-31. This is a software integration simulation of the current
 single-loop firmware, not an ESP32 emulator or FreeRTOS scheduler simulation.
 No hardware is flashed or operated.
 
@@ -30,11 +30,11 @@ cmake -S src/test -B build/host-tests
 cmake --build build/host-tests
 ctest --test-dir build/host-tests --output-on-failure
 
-# Run only the two simulations and print their summaries:
+# Run only the three simulations and print their summaries:
 ctest --test-dir build/host-tests -R '^simulation_' -V
 ```
 
-Outputs are under `build/host-tests/simulation/normal/` and `faults/`:
+Outputs are under `build/host-tests/simulation/normal/`, `faults/`, and `slow_sensor/`:
 
 - `summary.txt`: result and counters.
 - `trace.csv`: report timestamps, sensor/display states, and pump duties.
@@ -55,15 +55,21 @@ Generated outputs are ignored build artifacts and are regenerated on each run.
 | pH failure | Cycles 20–24: ADC read fails | Passed; pH unavailable, EC continues; pH recovers afterward |
 | EC failure | Cycles 40–44: ADC read fails | Passed; EC unavailable, pH continues; EC recovers afterward |
 | TFT timeout | Cycle 60: simulated 250 ms failure response | Passed; failure reported, further TFT writes stop, sensor sampling continues through cycle 89 |
+| Slow sensor | Separate run, cycle 30: EC read delayed by 4 seconds | Passed after fix; batch marked stale, next normal batch recovers |
 | Pump startup | All cycles | Passed; all simulated outputs remain zero |
 
 Normal run: 92,540 ms of virtual time, 90 pH reads, 90 EC reads, and 91 completed
 TFT frames. Fault run: 93,990 ms of virtual time, 90 reads per sensor, five
 injected failures per sensor, and 61 completed TFT frames before display shutdown.
 Sensor readings recover after their injected failures; acquisition continues
-after the TFT timeout. No new failures were found in this rerun.
+after the TFT timeout.
 
-All 42 host tests pass, including 14 FSM scenarios and these two integration
+The slow-sensor run adds 4000 ms to the EC read at cycle 30. It exposed an
+acquisition-timestamp bug, now fixed: the TFT shows stale data for that batch,
+then recovers on cycle 31. It completes 90 reads per sensor and 91 frames in
+96,540 ms of virtual time.
+
+All 50 host tests pass, including 20 FSM scenarios and these three integration
 runs. The system simulations additionally verify IDLE startup and a blocked
 START in the real production adapter. The existing storage test checks rollover and
 preservation of failed samples. The simulation executes the application's
@@ -82,6 +88,7 @@ inputs, not measured ESP32 timings or worst-case bounds.
 | Slow TFT | 1,208 ms |
 | TFT timeout cycle | 1,258 ms |
 | After TFT is disabled | 1,008 ms |
+| Slow sensor cycle | 5,028 ms |
 
 This demonstrates the coupling in the current sequential loop. It supports
 separating sensor acquisition from display work with queues and periodic task

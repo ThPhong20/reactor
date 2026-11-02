@@ -44,6 +44,8 @@ stop is attempted even if power-off fails. The state normally changes before
 the next screen refresh, so STOPPING may not appear on the TFT. A stop request
 in FAULT retries shutdown but does not clear the fault. STOP in INIT does not
 bypass initialization. An active external fault remains latched on STOP.
+A successful STOP in IDLE reports the current start blocker, not READY when
+requirements are still missing.
 
 ## Readiness and faults
 
@@ -53,7 +55,8 @@ START checks, in order:
 2. Pump manager is ready and pump action callbacks exist.
 3. Every stored duty is valid and above zero.
 4. Actual pump flows have been verified. Nonzero duties alone do not establish this.
-5. A sample exists and is no more than 3 seconds old, without a future timestamp.
+5. A sample exists and is no more than 3 seconds old, measured from acquisition
+   start, without a future timestamp. The TFT uses the same freshness rule.
 6. pH, required EC, and required turbidity all have usable, calibrated readings.
 7. Interlock inputs are implemented and report acceptable conditions.
 8. A real power-control callback exists.
@@ -109,11 +112,14 @@ cmake --build build/host-tests
 ctest --test-dir build/host-tests --output-on-failure
 ```
 
-Fourteen FSM scenarios cover normal transitions, startup guards, missing power
+Twenty FSM scenarios cover normal transitions, startup guards, missing power
 control, priming timeout, STOP during priming, sensor failures in PRIME/RUNNING,
 stale readings, interlock faults, partial pump/power start failures, failed
-shutdown, fault reset, and initialization failure. Simulations also verify that
+shutdown, fault reset, initialization failure, invalid numeric readings, and
+retention of start blockers after STOP. Additional checks cover missing callbacks,
+failed power-off before START, clock rollback, and loss of pump readiness.
+Simulations also verify that
 the real production adapter boots to IDLE and rejects START with outputs off.
 
-Total: 42 host tests. Actual PSU shutdown, interlocks, flow confirmation hardware,
+Total: 50 host tests. Actual PSU shutdown, interlocks, flow confirmation hardware,
 and real-time response require separate hardware integration and validation.

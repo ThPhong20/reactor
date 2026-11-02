@@ -1,6 +1,5 @@
 #include "hal/serial/serial.h"
 
-#include "driver/uart.h"
 #include "esp_log.h"
 
 namespace hal::serial {

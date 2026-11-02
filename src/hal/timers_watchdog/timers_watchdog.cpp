@@ -3,7 +3,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_timer.h"
-#include "esp_task_wdt.h"
 
 namespace hal::timers_watchdog {
 

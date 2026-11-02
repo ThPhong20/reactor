@@ -127,6 +127,8 @@ bool write_row(int row, const display_data::Pixels& pixels)
     if (!ready || row < 0 || row >= static_cast<int>(display_data::row_count)) return false;
     std::memcpy(dma_pixels, pixels.data(), row_bytes);
     const int y = row * display_data::row_height;
+    // The SDK call itself may block on SPI. The semaphore timeout below only
+    // bounds the later completion wait; this is not a control-loop deadline.
     if (!check(esp_lcd_panel_draw_bitmap(panel, 0, y, display_data::width,
                                         y + display_data::row_height, dma_pixels))) return false;
     if (xSemaphoreTake(complete, pdMS_TO_TICKS(250)) != pdTRUE) {

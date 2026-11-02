@@ -30,15 +30,16 @@ PumpConfigs default_pump_config()
              {6, 21.0f, 42.0f}}}; // Outlet 2: measured operating duty.
 }
 
-// Return pH/EC wiring, calibration defaults, and manual temperature.
+// Return sensor wiring, calibration defaults, and manual EC temperature.
 SensorConfig default_sensor_config()
 {
     // ESP32-S3 DevKitC-1 N16R8: use GPIO numbers, not the XIAO D0 label.
-    // pH SEN0161-V2: analog output directly to GPIO1 (ADC1 channel 0).
-    // EC DFR0300 V2 K=1: output -> 10k -> GPIO2 -> 20k -> GND.
+    // pH SEN0161-V2: analog output directly to GPIO8 (ADC1 channel 7).
+    // EC DFR0300 V2 K=1: output -> 10k -> GPIO10 (ADC1 channel 9) -> 20k -> GND.
     // Restore EC board voltage by multiplying the ADC pin voltage by 1.5.
     // GPIO4/5/6 remain reserved for pumps. Temperature defaults to MANUAL 25 C.
-    return {{1, {}}, {2, 1.5f, 25.0f, {}}};
+    // Reserve GPIO11 for turbidity, pending verified board voltage/calibration.
+    return {{8, {}}, {10, 1.5f, 25.0f, {}}, 11};
 }
 
 // Check enabled TFT pins and vertical offset against board limits.
@@ -48,10 +49,11 @@ bool valid_display_config(const DisplayConfig& display)
         return true; // Disabled hardware reserves no pins.
     }
     // DevKitC-1 N16R8 policy: keep the TFT away from USB, strapping,
-    // flash/PSRAM pins, and the default analog/pump pins.
+    // flash/PSRAM pins, and default pump pins. Sensor conflicts are checked
+    // separately against the supplied sensor map in valid_pin_assignments().
     const std::array pins{display.sclk, display.mosi, display.dc, display.reset};
     for (std::size_t i = 0; i < pins.size(); ++i) {
-        if (pins[i] < 7 || pins[i] > 18) {
+        if (pins[i] != 1 && pins[i] != 2 && (pins[i] < 7 || pins[i] > 18)) {
             return false;
         }
         for (std::size_t j = 0; j < i; ++j) {
@@ -69,14 +71,15 @@ bool valid_pin_assignments(const SensorConfig& sensors, const DisplayConfig& dis
     // Check sensor ownership even if a display setting is invalid: its selected
     // pins must never be taken by an ADC input while the display is enabled.
     // Analog input support itself is checked by the ADC HAL.
-    const std::array sensor_pins{sensors.ph.gpio, sensors.ec.gpio};
+    const std::array sensor_pins{sensors.ph.gpio, sensors.ec.gpio, sensors.turbidity_gpio};
     const std::array display_pins{display.sclk, display.mosi, display.dc, display.reset};
-    if (sensors.ph.gpio == sensors.ec.gpio) {
-        return false;
-    }
-    for (int pin : sensor_pins) {
+    for (std::size_t i = 0; i < sensor_pins.size(); ++i) {
+        const int pin = sensor_pins[i];
         if (pin < 0) {
             return false;
+        }
+        for (std::size_t j = 0; j < i; ++j) {
+            if (pin == sensor_pins[j]) return false;
         }
         for (const auto& pump : default_pump_config()) {
             if (pin == pump.gpio) {

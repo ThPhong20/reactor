@@ -82,8 +82,11 @@ void init()
     while (true) {
         // Sampling continues even with logging disabled. Sensor errors are
         // reported per input and do not start pumps or enable electrode power.
+        // Use the start time: a slow later sensor must not make earlier data
+        // look newly acquired when the batch finally completes.
+        const auto sampled_at_ms = scheduler::uptime_ms();
         const auto readings = sensor_manager::sample();
-        history.push(readings, scheduler::uptime_ms());
+        history.push(readings, sampled_at_ms);
         sensor_data::Record latest;
         history.latest(latest);
         const auto previous_state = reactor.state();

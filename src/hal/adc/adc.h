@@ -1,6 +1,6 @@
 #pragma once
 
-// Shared ADC1 adapter. Call from the application task, not an interrupt handler.
+// ADC1/ADC2 oneshot adapter. Call from the application task, not an interrupt handler.
 namespace hal::adc {
 
 struct Sample {
@@ -10,7 +10,7 @@ struct Sample {
 };
 
 // Uses 12-bit sampling, 12 dB attenuation, and per-channel voltage calibration.
-// Both pH and EC share one ADC1 unit. ADC2 pins are rejected.
+// Units are created on demand; pH/EC use ADC1, reserved turbidity GPIO11 uses ADC2.
 bool configure(int gpio);
 // Average 32 samples, then convert the mean through ESP-IDF ADC calibration.
 // On SDK failure, clear the output; never return the previous successful sample.

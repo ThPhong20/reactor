@@ -9,7 +9,6 @@ namespace {
 using sensor_data::Status;
 using display_data::Tone;
 bool ready = false;
-constexpr std::uint64_t stale_after_ms = 3000;
 
 // Format one sensor value and its status into two display rows.
 void reading(display_data::Row& value_row, display_data::Row& status_row,
@@ -45,8 +44,7 @@ display_data::Frame format(const sensor_data::Record& record, std::uint64_t now_
 {
     display_data::Frame frame{};
     const bool empty = record.sequence == 0;
-    const bool stale = !empty && (now_ms < record.sampled_at_ms ||
-                                 now_ms - record.sampled_at_ms > stale_after_ms);
+    const bool stale = !empty && !sensor_data::is_fresh(record, now_ms);
     std::snprintf(frame[0].text.data(), frame[0].text.size(), "%s",
                   empty ? "WAITING FOR DATA" : stale ? "STALE DATA" : state ? state : "REACTOR SENSORS");
     frame[0].tone = empty || stale ? Tone::Warning : Tone::Normal;

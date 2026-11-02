@@ -64,19 +64,20 @@ struct EcConfig {
 struct SensorConfig {
     PhConfig ph;
     EcConfig ec;
+    int turbidity_gpio = 11; // Reserved ADC2 channel 0; acquisition not enabled yet.
 };
 
-// Return pH/EC wiring, calibration defaults, and manual temperature.
+// Return sensor wiring, calibration defaults, and manual EC temperature.
 SensorConfig default_sensor_config();
 
 // GMT130 / ST7789 240x240, SPI2. These are DevKitC-1 GPIO numbers,
 // not Seeed XIAO D-pin labels. No CS/backlight GPIO on the seven-pin module.
 struct DisplayConfig {
     bool enabled = true;
-    int sclk = 12;
-    int mosi = 11;
-    int dc = 10;
-    int reset = 9;
+    int sclk = 7;  // TFT SCL (SPI clock).
+    int mosi = 9;  // TFT SDA (SPI data).
+    int dc = 2;
+    int reset = 1; // TFT RES.
     int y_offset = 0; // Set to 80 only if this panel needs that vertical offset.
     bool invert_colors = true;
 };

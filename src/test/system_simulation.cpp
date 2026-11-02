@@ -21,21 +21,25 @@
 
 namespace {
 constexpr unsigned iterations = 90;
+constexpr int ph_gpio = 8;
+constexpr int ec_gpio = 10;
+constexpr std::size_t gpio_count = 11; // GPIO-indexed fake ADC1 inputs, 0..10.
 struct Finished {};
 unsigned cycle = 0;
 std::uint64_t now_ms = 0;
 std::uint64_t previous_sample_ms = 0;
 std::uint64_t max_interval_ms = 0;
 bool faults = false;
+bool slow_sensor = false;
 bool display_failed = false;
 unsigned frames = 0;
 unsigned ph_errors = 0;
 unsigned ec_errors = 0;
 unsigned rows_after_failure = 0;
-std::array<bool, 3> adc_ready{};
+std::array<bool, gpio_count> adc_ready{};
 std::array<bool, 3> pump_ready{};
 std::array<float, 3> duty{};
-std::array<unsigned, 3> adc_reads{};
+std::array<unsigned, gpio_count> adc_reads{};
 std::array<std::uint16_t, display_data::width * display_data::height> screen{};
 std::vector<std::string> messages;
 std::filesystem::path output;
@@ -124,23 +128,24 @@ namespace hal::adc {
 // Validate and mark a simulated sensor ADC input ready.
 bool configure(int gpio)
 {
-    require(gpio == 1 || gpio == 2, "unexpected sensor GPIO");
+    require(gpio == ph_gpio || gpio == ec_gpio, "unexpected sensor GPIO");
     adc_ready[gpio] = true;
     return true;
 }
 // Advance virtual time and return synthetic ADC data or a failure.
 bool read(int gpio, Sample& sample)
 {
-    require((gpio == 1 || gpio == 2) && adc_ready[gpio], "uninitialized ADC input");
+    require((gpio == ph_gpio || gpio == ec_gpio) && adc_ready[gpio], "uninitialized ADC input");
     ++adc_reads[gpio];
     now_ms += 4; // Assumed duration for each averaged ADC read, not a benchmark.
+    if (slow_sensor && cycle == 30 && gpio == ec_gpio) now_ms += 4000;
     sample = {};
-    if ((gpio == 1 && ph_failure()) || (gpio == 2 && ec_failure())) return false;
+    if ((gpio == ph_gpio && ph_failure()) || (gpio == ec_gpio && ec_failure())) return false;
     // Synthetic board voltages. These exercise the real sensor conversions;
     // they are not a model of reaction chemistry, precipitation, or flow.
     const float wave = std::sin(static_cast<float>(cycle) * 0.1f);
-    sample.raw = gpio == 1 ? 2000 : 1000;
-    sample.millivolts = gpio == 1 ? 1500.0f + 40.0f * wave
+    sample.raw = gpio == ph_gpio ? 2000 : 1000;
+    sample.millivolts = gpio == ph_gpio ? 1500.0f + 40.0f * wave
                                 : (1.413f + 0.1f * wave) * 164.0f / 1.5f;
     return true;
 }
@@ -150,13 +155,17 @@ namespace hal::lcd {
 // Validate the simulated peripheral setup and report success.
 bool init(const system_config::DisplayConfig& config)
 {
-    require(config.sclk == 12 && config.mosi == 11 && config.dc == 10 && config.reset == 9,
+    require(config.sclk == 7 && config.mosi == 9 && config.dc == 2 && config.reset == 1,
             "unexpected TFT wiring");
     return true;
 }
 // Simulate TFT transfer delay, framebuffer writes, and timeout.
 bool write_row(int row, const display_data::Pixels& pixels)
 {
+    if (slow_sensor && row == 0 && (cycle == 30 || cycle == 31)) {
+        const bool warns = std::count(pixels.begin(), pixels.end(), 0xffe0) > 0;
+        require(warns == (cycle == 30), "slow acquisition must show stale data, then recover");
+    }
     if (display_failed) ++rows_after_failure;
     require(row >= 0 && row < static_cast<int>(display_data::row_count), "invalid display row");
     if (faults && cycle == 60) {
@@ -222,10 +231,11 @@ void delay_ms(int interval_ms)
 int main(int argc, char** argv)
 {
     try {
-        require(argc == 3, "usage: system_simulation normal|faults OUTPUT_DIRECTORY");
+        require(argc == 3, "usage: system_simulation normal|faults|slow_sensor OUTPUT_DIRECTORY");
         const std::string mode = argv[1];
-        require(mode == "normal" || mode == "faults", "unknown scenario");
+        require(mode == "normal" || mode == "faults" || mode == "slow_sensor", "unknown scenario");
         faults = mode == "faults";
+        slow_sensor = mode == "slow_sensor";
         output = argv[2];
         std::filesystem::create_directories(output);
         trace.open(output / "trace.csv");
@@ -239,7 +249,7 @@ int main(int argc, char** argv)
         require(logged("VERIFY PUMP FLOWS"), "blocked-start reason must be reported");
         messages.clear();
         try { app::run(); } catch (const Finished&) { /* End virtual run at its delay boundary. */ }
-        require(cycle == iterations && adc_reads[1] == iterations && adc_reads[2] == iterations,
+        require(cycle == iterations && adc_reads[ph_gpio] == iterations && adc_reads[ec_gpio] == iterations,
                 "sampling did not continue for the full run");
         require(ph_errors == (faults ? 5U : 0U) && ec_errors == (faults ? 5U : 0U), "unexpected sensor errors");
         require(rows_after_failure == 0, "display retried after latched failure");
@@ -249,7 +259,7 @@ int main(int argc, char** argv)
                 << "Real app.cpp, sensor/pump managers and drivers, RAM store, TFT renderer, telemetry.\n"
                 << "Simulated HALs and virtual time; no FreeRTOS kernel or physical hardware.\n"
                 << "Cycles: " << cycle << "; virtual elapsed ms: " << now_ms << '\n'
-                << "pH/EC read attempts: " << adc_reads[1] << '/' << adc_reads[2] << '\n'
+                << "pH/EC read attempts: " << adc_reads[ph_gpio] << '/' << adc_reads[ec_gpio] << '\n'
                 << "Injected pH/EC error samples: " << ph_errors << '/' << ec_errors << '\n'
                 << "Completed frames (including startup): " << frames << '\n'
                 << "Maximum report interval ms: " << max_interval_ms << '\n'

@@ -23,7 +23,7 @@ pump control APIs are implemented. EC and turbidity are required sensors;
 turbidity acquisition and EC-based theoretical-pH calculation remain pending,
 along with hardware safety and power-control integration. The FSM now implements
 guarded startup, priming, STOP, faults, and reset; real START remains blocked.
-Verification includes 42 host tests and the N16R8 firmware build; integrated
+Verification includes 50 host tests and the N16R8 firmware build; integrated
 hardware testing remains. See [the state machine](docs/state_machine.md).
 See [development progress](docs/progress.md) for the status and next steps.
 
@@ -106,7 +106,7 @@ Outlet 2 uses 42%, measured at 21 mL/min.
 Saved duties are applied only when explicitly commanded, not at startup.
 See [pump control](docs/pumps.md) for APIs, calibration, and host tests.
 
-pH (SEN0161-V2) uses GPIO1; EC (DFR0300 V2 K=1) uses GPIO2 through a 10k/20k
+pH (SEN0161-V2) uses GPIO8; EC (DFR0300 V2 K=1) uses GPIO10 through a 10k/20k
 voltage divider. The main loop averages 32 ADC samples per sensor and prints
 readings approximately once per second. Default coefficients are marked as
 uncalibrated estimates. EC uses a manual temperature setting, initially 25 C.
@@ -114,7 +114,9 @@ See [sensor acquisition](docs/sensors.md) for wiring, calibration, and tests.
 
 Each sample is saved with its uptime and status in a 60-record RAM history,
 then sent to serial telemetry and the GMT130/ST7789 240x240 TFT. The TFT uses
-GPIO12 SCLK, GPIO11 MOSI, GPIO10 DC, and GPIO9 RESET on the DevKitC-1 N16R8.
+GPIO7 SCLK, GPIO9 MOSI, GPIO2 DC, and GPIO1 RESET on the DevKitC-1 N16R8.
+GPIO11 (ADC2 channel 0) is reserved for turbidity; ADC2 HAL support is in place,
+but turbidity acquisition and calibration remain unimplemented.
 Turbidity displays unavailable until its acquisition code is implemented.
 RAM history clears at power-off; there is no persistent log yet.
 See [sensor storage and TFT](docs/display.md) for the data flow and wiring.

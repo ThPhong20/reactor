@@ -4,7 +4,7 @@
 // This layer will own sensor readings and model-specific calibration.
 namespace drivers::turbidity {
 
-// TODO: Define configuration and reading APIs after confirming the sensor
-// model, electrical interface, pin assignment, and calibration method.
+// GPIO11 (ADC2 channel 0) is reserved in SensorConfig. ADC2 HAL support exists.
+// TODO: Define reading APIs after verifying board voltage, divider, and calibration.
 
 } // namespace drivers::turbidity

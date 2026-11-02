@@ -6,9 +6,14 @@
 
 namespace sensor_data {
 
+// One freshness limit for the FSM and the operator display.
+inline constexpr std::uint64_t max_sample_age_ms = 3000;
+
 enum class Status { NotInitialized, AdcError, VoltageOutOfRange, ValueOutOfRange,
                     NeedsCalibration, Ok };
 
+
+// A single sensor reading, including raw ADC counts, voltages, and the final value.
 struct Reading {
     Status status = Status::NotInitialized;
     int raw = 0; // Averaged 12-bit ADC count, useful for wiring diagnostics.
@@ -17,8 +22,8 @@ struct Reading {
     float value = std::numeric_limits<float>::quiet_NaN(); // pH, EC25 mS/cm, or turbidity NTU.
 };
 
-// One validity rule for storage consumers, serial output, and the TFT.
-// Drivers enforce sensor-specific ranges; all current sensor values are >= 0.
+
+// Reject invalid numbers even when a driver reports a successful reading.
 inline Status effective_status(const Reading& reading)
 {
     const bool reports_value = reading.status == Status::Ok || reading.status == Status::NeedsCalibration;
@@ -28,24 +33,35 @@ inline Status effective_status(const Reading& reading)
     return reading.status;
 }
 
-// Report whether a reading contains a usable value, including estimates.
+// Returns true if the reading has a valid value, even if calibration is needed.
 inline bool has_value(const Reading& reading)
 {
     const auto status = effective_status(reading);
     return status == Status::Ok || status == Status::NeedsCalibration;
 }
 
+
+// A snapshot of all sensors at a single point in time, including the manually supplied temperature.
 struct Snapshot {
     Reading ph;
-    Reading ec; // Required EC25 input for the planned theoretical-pH calculation.
+    Reading ec;
     float ec_temperature_c = 25.0f; // Manual compensation input.
-    Reading turbidity; // Required sensor; unavailable until acquisition is implemented.
+    Reading turbidity; // Unavailable until acquisition/calibration is implemented.
 };
 
+
+// A stored record of sensor readings, including the time and sequence number.
 struct Record {
     Snapshot sensors;
-    std::uint64_t sampled_at_ms = 0; // Monotonic uptime, not wall-clock date/time.
+    std::uint64_t sampled_at_ms = 0; // Acquisition start, in monotonic milliseconds.
     std::uint64_t sequence = 0;      // Starts at 1; zero means no sample stored.
 };
+
+// Check age without unsigned underflow; sequence zero means no stored sample.
+inline bool is_fresh(const Record& record, std::uint64_t now_ms)
+{
+    return record.sequence != 0 && now_ms >= record.sampled_at_ms &&
+           now_ms - record.sampled_at_ms <= max_sample_age_ms;
+}
 
 } // namespace sensor_data

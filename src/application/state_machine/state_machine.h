@@ -37,7 +37,7 @@ public:
     // Create an INIT-state controller with the supplied output callbacks.
     explicit Machine(Outputs outputs) : outputs_(outputs) {}
     static constexpr std::uint64_t prime_timeout_ms = 60000;
-    static constexpr std::uint64_t max_sample_age_ms = 3000;
+    static constexpr std::uint64_t max_sample_age_ms = sensor_data::max_sample_age_ms;
     // Valid only in INIT; never starts outputs.
     bool initialize(bool pumps_ready);
     // Synchronous, single-task API. STOP attempts shutdown even in FAULT.

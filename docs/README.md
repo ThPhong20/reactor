@@ -1,5 +1,7 @@
 # Project Documentation
 
+- [Hardware readiness review](hardware_readiness.md): latest bug fixes, memory checks, and remaining bench checks.
+
 - [Reactor state machine](state_machine.md): states, readiness checks, shutdown order, and current hardware restrictions.
 - [System simulation](simulation.md): repeatable host runs, fault injection, TFT captures, and timing limits.
 - [Development progress](progress.md): current status, verified work, configuration, and next steps.

@@ -1,6 +1,6 @@
 # Development progress
 
-Updated: 2026-10-29
+Updated: 2026-11-01
 
 ## Current stage
 
@@ -30,7 +30,7 @@ DevKitC-1 firmware still needs a physical test.
 | Three pumps | Independent PWM, adjustable duties, coordinated start/stop, startup at zero duty; 10 kHz / 10-bit | Verify all three flows together under actual plumbing conditions; add operator controls |
 | pH | SEN0161-V2 acquisition, voltage conversion, calibration API, error status | Measure buffer references and verify on hardware; save calibration persistently |
 | EC (required) | DFR0300 V2 K=1 acquisition, calibration API, normalization to 25 C using manual temperature | Calibrate with standards and verify divider/readings; save calibration persistently; supply theoretical-pH calculation |
-| Turbidity (required) | Driver/application folders and data/display fields | Confirm model, interface, pin, and calibration; implement acquisition |
+| Turbidity (required) | GPIO11 reserved, ADC2 HAL support, driver/application folders and data/display fields | Confirm OEM board output voltage, divider, and calibration; implement acquisition |
 | Theoretical pH | Not implemented | Add a separate EC-based application calculation and a distinct derived value in storage/output |
 | Data storage | Latest 60 snapshots in RAM, with uptime, sequence number, and sensor status | Persistent data logging/export if required; RAM clears at restart |
 | TFT | GMT130/ST7789 240x240 renderer, values, units, calibration/error labels, startup screen | Verify wiring, alignment, colors, and refresh on DevKitC-1 |
@@ -48,18 +48,31 @@ remain unavailable until implemented.
 
 | Connection | GPIO | Setting / status |
 | --- | --- | --- |
-| Inlet pump | 4 | Target 70 mL/min; user measured 70 mL/min at 90% duty |
-| Outlet 1 pump | 5 | Measured 49 mL/min at 65% duty |
-| Outlet 2 pump | 6 | Measured 21 mL/min at 42% duty |
-| pH analog input | 1 | Direct sensor-board input |
-| EC analog input | 2 | 10k/20k divider; restore board voltage with gain 1.5 |
-| TFT SCLK / MOSI | 12 / 11 | SPI2, 20 MHz, mode 3 |
-| TFT DC / RESET | 10 / 9 | Seven-pin module, no exposed CS |
-| Turbidity input | Unassigned | Awaiting sensor details |
+| Inlet pump | 4 | Grothen G328, 24 V, 3 x 5 mm; measured 70 mL/min at 90% duty |
+| Outlet 1 pump | 5 | NKP-DA-S10B, 24 V; measured 49 mL/min at 65% duty |
+| Outlet 2 pump | 6 | NKP-DA-S10B, 24 V; measured 21 mL/min at 42% duty |
+| pH analog input | 8 | Direct sensor-board input |
+| EC analog input | 10 | 10k/20k divider; restore board voltage with gain 1.5 |
+| TFT SCLK / MOSI | 7 / 9 | SPI2, 20 MHz, mode 3 |
+| TFT DC / RESET | 2 / 1 | Seven-pin module, no exposed CS |
+| Turbidity input | 11 | ADC2 channel 0 reserved; acquisition remains disabled |
 
+The user reports maximum pump capacities of 90 mL/min for the inlet and
+75 mL/min for each outlet. All motors are confirmed as 24 V, with HW-517 PWM
+driver modules. Independent control requires three modules; installed quantity,
+flyback protection, startup current, and reset behavior still need bench checks.
+See [driver wiring](pumps.md#hw-517-driver-wiring).
 All three pumps have individually measured operating points.
 These measurements do not establish a general linear PWM-to-flow formula. All three
 pumps remain off at boot, including the inlet with its saved 90% duty.
+
+The TFT wiring was updated on 2026-11-01; pH moved to GPIO8 and EC to GPIO10
+to avoid conflicts. GPIO7 is now the TFT clock, so the earlier proposed turbidity
+pin is unavailable. Turbidity is now reserved on GPIO11 (ADC2 channel 0).
+The ADC HAL supports both units; turbidity sampling is still pending verified
+board voltage, divider, and calibration.
+The updated pin map passes all 50 host tests and the N16R8 firmware build;
+it has not been flashed or verified on the board.
 
 ## Current runtime workflow
 
@@ -78,20 +91,26 @@ display updates until reboot while acquisition and storage continue.
 
 ## Verification completed
 
-Latest host verification: 2026-10-29.
+Latest host verification: 2026-10-31.
 
-- 42 host tests passed: 14 FSM, 11 pump, 8 sensor, 7 storage/display, 2 system simulations.
+- 50 host tests passed: 20 FSM, 11 pump, 9 sensor, 7 storage/display, 3 system simulations.
 - Normal and fault-injected simulations each ran the real application loop for
   90 cycles with simulated peripherals; see [simulation results](simulation.md).
 - Normal simulation: 90 reads per sensor, 91 TFT frames, maximum report interval 1,028 ms.
 - Fault simulation: five injected failures per sensor recovered; TFT timeout
   disabled display updates while sampling continued for all 90 cycles.
   Maximum report interval was 1,258 ms. Timing is virtual, not measured hardware timing.
-- Saved pump duties are 90%, 65%, and 42%. Both simulations confirmed zero
+- Saved pump duties are 90%, 65%, and 42%. All three simulations confirmed zero
   startup output and rejected START with `IDLE / VERIFY PUMP FLOWS`.
-- The preceding firmware review successfully built for ESP32-S3, 16 MB flash,
-  Octal PSRAM enabled, with no compiler warnings or errors. This rerun changed
-  documentation only; it did not rebuild or flash firmware.
+- All 50 tests also passed with address, leak, and undefined-behavior sanitizers.
+- Firmware rebuilt for ESP32-S3, 16 MB flash, Octal PSRAM enabled, with no
+  compiler warnings/errors; no board was flashed.
+- Corrected a missing shared sensor-validation helper and misleading READY status
+  after STOP. Restored display layout checks. See [hardware readiness](hardware_readiness.md).
+- Corrected EC range oscillation and acquisition timestamps; a 4-second slow-sensor
+  simulation now reports stale data. FSM and display share one freshness rule.
+- Reviewed FreeRTOS ownership, watchdog gaps, and unbounded SDK SPI waits; see
+  [the current code review](code_review.md#current-review--2026-10-31).
 - Complete DevKitC-1 + pumps + sensors + TFT hardware operation is not verified.
 
 Host tests use fake peripheral interfaces. They validate software behavior,

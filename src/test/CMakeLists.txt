@@ -6,7 +6,10 @@ add_executable(state_machine_test state_machine_test.cpp ../application/state_ma
 target_include_directories(state_machine_test PRIVATE ..)
 target_compile_features(state_machine_test PRIVATE cxx_std_17)
 target_compile_options(state_machine_test PRIVATE -Wall -Wextra -Werror)
-foreach(scenario happy guards timeout sensor_failure pump_failure power_failure shutdown_failure reset init_failure stop_from_prime external_fault prime_sensor_failure stale_running interlock_running)
+foreach(scenario happy guards timeout sensor_failure pump_failure power_failure
+        shutdown_failure reset init_failure stop_from_prime external_fault
+        prime_sensor_failure stale_running interlock_running stop_blocked invalid_running
+        missing_outputs start_power_off_failure clock_rollback lost_pump_running)
     add_test(NAME fsm_${scenario} COMMAND state_machine_test ${scenario})
 endforeach()
 add_executable(pump_control_test
@@ -44,7 +47,7 @@ add_executable(system_simulation
 target_include_directories(system_simulation PRIVATE ..)
 target_compile_features(system_simulation PRIVATE cxx_std_17)
 target_compile_options(system_simulation PRIVATE -Wall -Wextra -Werror)
-foreach(scenario normal faults)
+foreach(scenario normal faults slow_sensor)
     add_test(NAME simulation_${scenario}
         COMMAND system_simulation ${scenario} ${CMAKE_CURRENT_BINARY_DIR}/simulation/${scenario})
 endforeach()
@@ -60,7 +63,7 @@ add_executable(sensor_test
 target_include_directories(sensor_test PRIVATE ..)
 target_compile_features(sensor_test PRIVATE cxx_std_17)
 target_compile_options(sensor_test PRIVATE -Wall -Wextra -Werror)
-foreach(scenario conversion calibration temperature invalid_readings partial_init pin_conflict telemetry invalid_output)
+foreach(scenario conversion calibration range_stability temperature invalid_readings partial_init pin_conflict telemetry invalid_output)
     add_test(NAME sensor_${scenario} COMMAND sensor_test ${scenario})
 endforeach()
 
