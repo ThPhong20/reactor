@@ -2,6 +2,16 @@ cmake_minimum_required(VERSION 3.22)
 project(reactor_host_tests LANGUAGES CXX)
 
 enable_testing()
+add_executable(timed_pump_test timed_pump_test.cpp
+    ../application/hardware_test/controller.cpp ../common/system_config.cpp)
+target_include_directories(timed_pump_test PRIVATE ..)
+target_compile_features(timed_pump_test PRIVATE cxx_std_17)
+target_compile_options(timed_pump_test PRIVATE -Wall -Wextra -Werror)
+foreach(scenario unavailable invalid single write_failure preflight_stop_failure
+        busy rollback stop_failure external_failure deadline_command stop)
+    add_test(NAME timed_${scenario} COMMAND timed_pump_test ${scenario})
+endforeach()
+
 add_executable(state_machine_test state_machine_test.cpp ../application/state_machine/state_machine.cpp)
 target_include_directories(state_machine_test PRIVATE ..)
 target_compile_features(state_machine_test PRIVATE cxx_std_17)
@@ -40,6 +50,8 @@ add_executable(system_simulation
     ../application/telemetry/telemetry.cpp
     ../driver/ph/ph.cpp
     ../driver/ec/ec.cpp
+    ../driver/turbidity/turbidity.cpp
+    ../application/turbidity_manager/turbidity_manager.cpp
     ../driver/pump_pwm/pump_pwm.cpp
     ../driver/tft/tft.cpp
     ../common/system_config.cpp
@@ -58,6 +70,8 @@ add_executable(sensor_test
     ../application/telemetry/telemetry.cpp
     ../driver/ph/ph.cpp
     ../driver/ec/ec.cpp
+    ../driver/turbidity/turbidity.cpp
+    ../application/turbidity_manager/turbidity_manager.cpp
     ../common/system_config.cpp
 )
 target_include_directories(sensor_test PRIVATE ..)
@@ -79,4 +93,24 @@ target_compile_features(display_test PRIVATE cxx_std_17)
 target_compile_options(display_test PRIVATE -Wall -Wextra -Werror)
 foreach(scenario storage format pins init_failure transfer_failure enable_failure render)
     add_test(NAME display_${scenario} COMMAND display_test ${scenario})
+endforeach()
+
+add_executable(hardware_session_test hardware_session_test.cpp
+    ../application/hardware_test/session.cpp
+    ../application/hardware_test/controller.cpp ../common/system_config.cpp)
+target_include_directories(hardware_session_test PRIVATE ..)
+target_compile_features(hardware_session_test PRIVATE cxx_std_17)
+target_compile_options(hardware_session_test PRIVATE -Wall -Wextra -Werror)
+foreach(scenario missing invalid_start future fresh invalid_running stale pump_only)
+    add_test(NAME hardware_${scenario} COMMAND hardware_session_test ${scenario})
+endforeach()
+
+add_executable(turbidity_test turbidity_test.cpp ../driver/turbidity/turbidity.cpp
+    ../application/turbidity_manager/turbidity_manager.cpp
+    ../application/display_manager/display_manager.cpp ../common/system_config.cpp)
+target_include_directories(turbidity_test PRIVATE ..)
+target_compile_features(turbidity_test PRIVATE cxx_std_17)
+target_compile_options(turbidity_test PRIVATE -Wall -Wextra -Werror)
+foreach(scenario disabled divider errors voltage)
+    add_test(NAME turbidity_${scenario} COMMAND turbidity_test ${scenario})
 endforeach()

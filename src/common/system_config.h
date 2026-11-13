@@ -64,7 +64,9 @@ struct EcConfig {
 struct SensorConfig {
     PhConfig ph;
     EcConfig ec;
-    int turbidity_gpio = 11; // Reserved ADC2 channel 0; acquisition not enabled yet.
+    int turbidity_gpio = 11; // TS-300B on ADC2 channel 0.
+    bool turbidity_enabled = false; // Enable only after verifying the external divider.
+    float turbidity_divider_gain = 2.0f; // Proposed 10k series / 10k to ground.
 };
 
 // Return sensor wiring, calibration defaults, and manual EC temperature.

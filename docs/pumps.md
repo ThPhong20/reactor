@@ -96,12 +96,21 @@ The 24 V supply and branch protection must accommodate all three motor startup
 currents. No supply-current rating is selected from flow rate alone. Firmware
 settings remain 90%, 65%, and 42%, and all outputs still initialize off.
 
+## Supervised physical tests
+
+Use the separate native-USB integrated hardware-test image described in
+[hardware bring-up](hardware_bringup.md). It adds timed commands and a task
+watchdog without enabling the production reactor FSM or electrode power.
+For example, `run inlet 90 10` requests a 10-second inlet test. Every run is
+limited to at most 60 seconds; `stop` or `!` stops all pumps. Physical
+flow and reset/off behavior still require measurement.
+
 ## Startup and control
 
 `app::init()` initializes the pump manager and leaves all outputs off. The
 application loop does not start pumps automatically. The FSM owns guarded
 START/STOP events, but the production adapter blocks START until required
-readiness and hardware backends exist. There is no serial/button command parser.
+readiness and hardware backends exist. The normal monitoring image has no serial/button command parser.
 A nonzero stored duty does not enable a pump at boot. See [the FSM](state_machine.md).
 
 Use the pump manager from the application task:

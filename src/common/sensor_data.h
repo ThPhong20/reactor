@@ -10,7 +10,7 @@ namespace sensor_data {
 inline constexpr std::uint64_t max_sample_age_ms = 3000;
 
 enum class Status { NotInitialized, AdcError, VoltageOutOfRange, ValueOutOfRange,
-                    NeedsCalibration, Ok };
+                    NeedsCalibration, Ok, RawOnly };
 
 
 // A single sensor reading, including raw ADC counts, voltages, and the final value.
@@ -30,6 +30,11 @@ inline Status effective_status(const Reading& reading)
     if (reports_value && (!std::isfinite(reading.value) || reading.value < 0.0f)) {
         return Status::ValueOutOfRange;
     }
+    if (reading.status == Status::RawOnly &&
+        (!std::isfinite(reading.board_mv) || !std::isfinite(reading.pin_mv) ||
+         reading.pin_mv <= 0 || reading.pin_mv > 3100 || reading.board_mv <= 0 || reading.board_mv > 4500)) {
+        return Status::VoltageOutOfRange;
+    }
     return reading.status;
 }
 
@@ -46,7 +51,7 @@ struct Snapshot {
     Reading ph;
     Reading ec;
     float ec_temperature_c = 25.0f; // Manual compensation input.
-    Reading turbidity; // Unavailable until acquisition/calibration is implemented.
+    Reading turbidity; // Raw voltage only until NTU calibration is implemented.
 };
 
 

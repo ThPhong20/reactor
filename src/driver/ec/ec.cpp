@@ -85,7 +85,7 @@ sensor_data::Reading read()
     result.board_mv = sample.millivolts * settings.divider_gain;
     // The divider reduces the EC board's 0..3.4 V output for the ADC input.
     if (sample.clipped || !std::isfinite(result.pin_mv) || !std::isfinite(result.board_mv) ||
-        result.pin_mv <= 0.0f || result.pin_mv > 3100.0f || result.board_mv > 3400.0f) {
+        result.pin_mv <= 0.0f || result.pin_mv > 3300.0f || result.board_mv > 3400.0f) {
         result.status = sensor_data::Status::VoltageOutOfRange;
         return result;
     }

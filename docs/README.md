@@ -1,5 +1,6 @@
 # Project Documentation
 
+- [Hardware bring-up](hardware_bringup.md): wiring, integrated sensor/TFT/pump test, native USB commands, and acceptance record.
 - [Hardware readiness review](hardware_readiness.md): latest bug fixes, memory checks, and remaining bench checks.
 
 - [Reactor state machine](state_machine.md): states, readiness checks, shutdown order, and current hardware restrictions.

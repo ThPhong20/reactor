@@ -28,7 +28,7 @@ appear on TFT and serial. See [state machine behavior](state_machine.md).
 EC and turbidity are required sensors. EC is also an input to the planned
 theoretical-pH calculation. That calculation belongs in the application layer,
 with a separate derived result; it must not replace electrode-measured pH or
-be embedded in the EC hardware driver. Required turbidity acquisition and
+be embedded in the EC hardware driver. Turbidity NTU conversion and
 theoretical-pH output are not implemented yet.
 
 ## Device driver layer
@@ -38,16 +38,15 @@ theoretical-pH output are not implemented yet.
 | `pump_pwm` | Per-pump output control | PWM / LEDC |
 | `ph` | pH conversion and calibration | ADC |
 | `ec` | EC conversion and calibration | ADC |
-| `turbidity` | Scaffold for sensor acquisition and calibration | Pending sensor/interface selection |
+| `turbidity` | TS-300B voltage acquisition; NTU conversion pending | ADC2 |
 | `serial` | Telemetry transport | UART / USB console |
 | `tft` | Render status/value text in 240x240 strips | LCD HAL |
 
 Device drivers own device-specific behavior. Application code should use these
-interfaces rather than call peripheral SDK functions directly. Turbidity has
-driver and application scaffolds with review comments, but no acquisition code.
-They are not registered in `main/CMakeLists.txt` or called by the application yet.
-GPIO11 (ADC2 channel 0) is reserved for turbidity in `SensorConfig`. Its board
-voltage range, divider, and calibration method must be confirmed before acquisition. INA226 remains a planned addition
+interfaces rather than call peripheral SDK functions directly. TS-300B voltage acquisition is registered in the build and called through the
+sensor manager when enabled. GPIO11 (ADC2 channel 0) is reserved in SensorConfig.
+The default disables acquisition because no divider is installed. NTU calibration
+is still missing. INA226 remains a planned addition
 without source files.
 
 ## Hardware abstraction layer
@@ -112,11 +111,10 @@ it does not issue pump start commands. Pump APIs support
 manual duty adjustment, stored operating duties, coordinated start, and stop.
 Sensor calibration/temperature setters are C++ APIs with RAM-only updates; NVS
 and serial calibration commands remain pending. FSM transitions are implemented;
-physical safety interlocks, turbidity, and INA226 acquisition remain unimplemented.
+physical safety interlocks, turbidity NTU conversion, and INA226 acquisition remain unimplemented.
 
 The TFT is GMT130/ST7789 240x240 with SCLK/MOSI/DC/RESET on GPIO7/9/2/1.
-Storage includes a turbidity field that remains unavailable until acquisition
-is implemented. The 60-record history is RAM-only and resets at reboot.
+Storage includes a turbidity field supporting raw voltage with unavailable NTU. The 60-record history is RAM-only and resets at reboot.
 See [sensor storage and TFT](display.md) for ownership, wiring, and failure handling.
 
 ## Planned additions
@@ -125,13 +123,23 @@ Implement these features when their hardware and behavior are defined:
 
 - Safety manager and GPIO input support for interlocks and STOP handling.
 - Operator events, physical flow confirmation, and electrolysis power control.
-- Turbidity acquisition and INA226 current/voltage monitoring with I2C support.
+- Turbidity divider verification and NTU calibration; INA226 current/voltage monitoring with I2C support.
 - EC-based theoretical-pH calculation, stored separately from measured pH.
 
 Unused common/test starter files and empty `external/` and `tools/` scaffolding
-have been removed. Turbidity scaffolds are retained for upcoming development.
+have been removed. Turbidity now has a voltage driver and application manager.
 ESP-IDF supplies FreeRTOS; no separate external RTOS source tree is needed.
 
 Hardware bench tests remain outside the repository in `../benchtest/`. Pump
 manager/driver host tests live in `src/test/` and use a fake PWM HAL. Sensor tests
 use a fake ADC to exercise conversions, calibration, errors, and telemetry.
+
+## Integrated hardware-test image
+
+`REACTOR_HARDWARE_TEST` selects `application/hardware_test` and
+`hal/test_console`. A control task owns timed pump commands and watchdog feeding;
+a monitoring task owns ADC readings, RAM history, and TFT updates. Queues copy
+data between them. `Session` supervises sample freshness and `Controller`
+validates commands and deadlines. Production entry-point behavior is unchanged.
+TS-300B acquisition uses `turbidity_manager` and `driver/turbidity`; it reports
+raw voltage only and remains disabled until divider wiring is verified.

@@ -99,8 +99,9 @@ const bool accepted = app::command(app::state_machine::Event::Start);
 // Check accepted; the current production configuration rejects this request.
 ```
 
-There is no command parser, button input, automatic START, or task migration
-in this update. Monitoring still uses one task with roughly one-second cycles;
+The normal monitoring image has no command parser, button input, automatic START,
+or task migration. A separate [integrated hardware-test image](hardware_bringup.md) has timed
+commands and bypasses this FSM for supervised water testing with separate monitoring and control tasks. Normal monitoring still uses one task with roughly one-second cycles;
 the FSM is not a fast emergency-stop service or physical safety interlock.
 Do not call the manual pump APIs from another task while the FSM owns operation.
 
@@ -121,5 +122,5 @@ failed power-off before START, clock rollback, and loss of pump readiness.
 Simulations also verify that
 the real production adapter boots to IDLE and rejects START with outputs off.
 
-Total: 50 host tests. Actual PSU shutdown, interlocks, flow confirmation hardware,
+Total: 71 host tests, including 11 timed-pump, 6 hardware-session, and 4 turbidity cases. Actual PSU shutdown, interlocks, flow confirmation hardware,
 and real-time response require separate hardware integration and validation.

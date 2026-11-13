@@ -36,15 +36,15 @@ ranges are 0..3.0 V for [SEN0161-V2](https://wiki.dfrobot.com/sen0161-v2) and
 mapping, EC divider gain, manual temperature, and calibration settings. Both
 sensor calibration flags start false; default coefficients are estimates.
 
-## Reserved turbidity input
+## Optional TS-300B voltage input
 
 GPIO11 (ADC2 channel 0) is reserved in `SensorConfig::turbidity_gpio`.
 Pin ownership checks include this reservation even before acquisition is enabled.
 The ADC HAL creates ADC1/ADC2 units on demand and keeps their calibration handles
-separate. Current pH/EC sampling uses ADC1; no application code configures or reads
-turbidity yet, so it remains unavailable on the TFT and in telemetry. Verify the
-OEM board output voltage and required divider before connecting AO; an NTU
-conversion requires measured calibration data.
+separate. Current pH/EC sampling uses ADC1. The TS-300B driver can read ADC2 and report
+board voltage, but is disabled by default: no divider is installed. Keep AO
+disconnected until the divider is installed and measured. Enabling it displays
+voltage only; NTU conversion requires measured calibration data.
 
 ## Runtime workflow
 
@@ -55,8 +55,8 @@ conversion requires measured calibration data.
    mean to millivolts using ESP-IDF curve fitting.
 4. Each driver converts its board voltage to a sensor value and supplies a status.
 5. The application stores a timestamped snapshot in its 60-record RAM history,
-   updates the TFT, and prints serial telemetry. Turbidity has a reserved field
-   and displays unavailable until its acquisition is implemented.
+   updates the TFT, and prints serial telemetry. Turbidity has a raw-voltage field
+   and remains unavailable while its acquisition is disabled.
 6. The scheduler waits 1000 ms. The actual interval is this delay plus the time
    taken to sample, update the display, and log. See [storage and TFT](display.md).
 
@@ -154,3 +154,12 @@ ctest --test-dir build/host-tests --output-on-failure
 Use the N16R8 build command in the project README to compile the actual ADC HAL.
 Physical voltages and solution measurements require bench verification on the
 connected DevKitC-1; host tests do not establish sensor accuracy.
+
+## TS-300B hardware-test update — 2026-11-03
+
+The identified sensor is TS-300B on GPIO11. Raw-voltage acquisition and display
+are implemented, but disabled by default because no divider is installed.
+AO must remain disconnected until safe wiring is verified. See
+[the integrated test procedure](hardware_bringup.md#ts-300b-wiring-prerequisite)
+for the proposed divider and enable setting. Raw voltage is not NTU and does not
+satisfy the production reactor's calibrated turbidity requirement.

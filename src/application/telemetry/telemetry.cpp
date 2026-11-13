@@ -11,6 +11,7 @@ namespace {
 const char* status_text(sensor_data::Status status)
 {
     switch (status) {
+    case sensor_data::Status::RawOnly: return "voltage only; NTU unavailable";
     case sensor_data::Status::Ok: return "calibrated";
     case sensor_data::Status::NeedsCalibration: return "estimate; needs calibration";
     case sensor_data::Status::NotInitialized: return "not initialized";
@@ -72,7 +73,7 @@ void report_sensor_initialization(bool ready)
     drivers::serial::write_line(ready ? "pH and EC ADC inputs initialized."
                                     : "One or more sensor inputs failed initialization; check reading status.");
     drivers::serial::write_line("pH has no temperature compensation. EC temperature is MANUAL; default 25 C.");
-    drivers::serial::write_line("Required turbidity acquisition and EC-based theoretical pH are not implemented yet.");
+    drivers::serial::write_line("TS-300B voltage acquisition requires verified divider configuration; NTU and EC-based theoretical pH remain unavailable.");
 }
 
 // Print pH, EC, and turbidity readings with their status.

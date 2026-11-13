@@ -1,9 +1,9 @@
 #pragma once
-
-// Application scaffold for turbidity monitoring; not connected to app::run().
+#include "common/system_config.h"
+#include "common/sensor_data.h"
 namespace app::turbidity_manager {
-
-// TODO: Define initialization and sampling APIs using the turbidity driver.
-// Coordinate filtering and expose readings/status for sensor telemetry.
-
-} // namespace app::turbidity_manager
+// Leave the input untouched until the configuration confirms safe wiring.
+bool init(const system_config::SensorConfig& config);
+// Return current raw voltage or an explicit unavailable/error status.
+sensor_data::Reading sample();
+}

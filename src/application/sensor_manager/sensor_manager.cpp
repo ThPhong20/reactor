@@ -1,6 +1,7 @@
 #include "application/sensor_manager/sensor_manager.h"
 
 #include "driver/ph/ph.h"
+#include "application/turbidity_manager/turbidity_manager.h"
 #include "driver/ec/ec.h"
 
 namespace app::sensor_manager {
@@ -8,6 +9,7 @@ namespace app::sensor_manager {
 namespace {
 bool ph_ready = false;
 bool ec_ready = false;
+bool turbidity_ready = false;
 } // namespace
 
 // Check pin ownership and initialize pH and EC independently.
@@ -15,13 +17,15 @@ bool init(const system_config::SensorConfig& config, const system_config::Displa
 {
     ph_ready = false;
     ec_ready = false;
+    turbidity_ready = false;
     // Validate before configuring ADC pins, including pins owned by the TFT.
     if (!system_config::valid_pin_assignments(config, display)) {
         return false;
     }
     ph_ready = drivers::ph::init(config.ph);
     ec_ready = drivers::ec::init(config.ec);
-    return ph_ready && ec_ready;
+    turbidity_ready = turbidity_manager::init(config);
+    return ph_ready && ec_ready && turbidity_ready;
 }
 
 // Read available sensors into a fresh snapshot, preserving error status.
@@ -34,7 +38,7 @@ sensor_data::Snapshot sample()
     readings.ec = ec_ready ? drivers::ec::read() : sensor_data::Reading{};
     readings.ec_temperature_c = ec_ready ? drivers::ec::temperature()
                                        : std::numeric_limits<float>::quiet_NaN();
-    // Turbidity stays NotInitialized/NaN until its driver is implemented.
+    readings.turbidity = turbidity_ready ? turbidity_manager::sample() : sensor_data::Reading{};
     return readings;
 }
 

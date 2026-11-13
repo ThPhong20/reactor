@@ -2,6 +2,8 @@
 
 Wiring references updated on 2026-11-01 for TFT GPIO7/9/2/1, pH/EC GPIO8/10,
 and reserved turbidity GPIO11. Turbidity acquisition remains disabled.
+An integrated hardware-test image replaced the pump-only test on 2026-11-03; use the current
+[hardware bring-up guide](hardware_bringup.md). Results below describe the earlier review.
 
 The corrected firmware is ready for a supervised monitoring-board bench test
 with pump power and electrode power disconnected. Complete reactor operation
@@ -39,14 +41,14 @@ this review cannot establish that every possible fault has been eliminated.
 | Inlet pump | Grothen G328, 24 V, 3 x 5 mm; reported maximum 90 mL/min; measured 70 mL/min at 90% duty | GPIO4, 90% saved duty |
 | Outlet 1 | NKP-DA-S10B, 24 V; reported maximum 75 mL/min; measured 49 mL/min at 65% duty | GPIO5, 65% saved duty |
 | Outlet 2 | NKP-DA-S10B, 24 V; reported maximum 75 mL/min; measured 21 mL/min at 42% duty | GPIO6, 42% saved duty |
-| Turbidity | OEM probe with analog board; exact model unknown | No assigned GPIO or acquisition yet |
+| Turbidity | OEM probe with analog board; exact model unknown | GPIO11 reserved; no acquisition yet |
 
 Pump models are now confirmed by the user. Pump PWM remains 10 kHz, 10-bit,
 active high. The user's affirmative reply was interpreted as LOW = stopped;
 verify that behavior at the actual external driver input. The user identified
 the driver as HW-517. Its common dual-MOSFET design controls one output, so the
-three independent pumps require three modules. Installed quantity and physical
-electrical/protection checks remain pending; see [HW-517 wiring](pumps.md#hw-517-driver-wiring).
+three independent pumps require three modules. Three modules and an accessible motor-power disconnect were confirmed on
+2026-11-03. Physical electrical/protection checks remain pending; see [HW-517 wiring](pumps.md#hw-517-driver-wiring).
 
 The [Grothen G328 data sheet](https://ae01.alicdn.com/kf/Sfb54a59c481d4a0f97dff55d549263371.pdf)
 lists both 12 V and 24 V versions with 3 x 5 mm tubing; the user has now
@@ -83,7 +85,7 @@ GPIO35–37 on Octal-memory variants.
 | Turbidity | Confirm label, connector pinout, supply and maximum output voltage, then select input conditioning and calibration. Do not substitute an unrelated voltage-to-NTU equation. |
 | pH/EC calibration | Both calibration flags remain false. Verify standards and manual liquid temperature before treating readings as calibrated. Check for interference when sensors and pumps operate together. |
 | Loop timing and watchdog | FSM, sampling, TFT, and serial share one task. SDK idle-task watchdog checks do not supervise successful completion of this application loop. There is no dedicated fast shutdown task or application watchdog. |
-| Manual pump APIs | `set_manual_duty()` and direct `start_all()` bypass FSM readiness checks. They are supervised bench APIs, not an operator safety interface; no serial command parser exists. |
+| Manual pump APIs | `set_manual_duty()` and direct `start_all()` bypass FSM readiness checks. They are supervised bench APIs, not an operator safety interface; normal firmware has no parser; the separate bench image now provides timed commands. |
 | Persistent records | Calibration changes made through APIs and the 60-record RAM history are lost on reboot. |
 | Flash configuration | Use `make build`, `make flash`, and `make monitor` from an activated ESP-IDF environment. Plain root `idf.py` commands select the older 2 MB/no-PSRAM configuration. |
 

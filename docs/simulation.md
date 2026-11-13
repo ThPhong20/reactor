@@ -69,7 +69,7 @@ acquisition-timestamp bug, now fixed: the TFT shows stale data for that batch,
 then recovers on cycle 31. It completes 90 reads per sensor and 91 frames in
 96,540 ms of virtual time.
 
-All 50 host tests pass, including 20 FSM scenarios and these three integration
+The suite now includes 71 host tests: 20 FSM scenarios, 11 timed-pump cases, 6 hardware-session cases, 4 turbidity cases, and the existing pump/sensor/display checks and these three integration
 runs. The system simulations additionally verify IDLE startup and a blocked
 START in the real production adapter. The existing storage test checks rollover and
 preservation of failed samples. The simulation executes the application's

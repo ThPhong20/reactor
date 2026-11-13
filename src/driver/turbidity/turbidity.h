@@ -1,10 +1,9 @@
 #pragma once
+#include "common/sensor_data.h"
 
-// Turbidity sensor driver scaffold; acquisition is not implemented yet.
-// This layer will own sensor readings and model-specific calibration.
 namespace drivers::turbidity {
-
-// GPIO11 (ADC2 channel 0) is reserved in SensorConfig. ADC2 HAL support exists.
-// TODO: Define reading APIs after verifying board voltage, divider, and calibration.
-
+// Configure a TS-300B input only after its external divider is verified.
+bool init(int gpio, float divider_gain);
+// Return board voltage only; NTU stays unavailable without a calibration model.
+sensor_data::Reading read();
 } // namespace drivers::turbidity

@@ -15,7 +15,9 @@ void reading(display_data::Row& value_row, display_data::Row& status_row,
              const char* name, const char* unit, const sensor_data::Reading& sample)
 {
     const auto effective_status = sensor_data::effective_status(sample);
-    if (sensor_data::has_value(sample)) {
+    if (effective_status == Status::RawOnly) {
+        std::snprintf(value_row.text.data(), value_row.text.size(), "%s %.2f V", name, sample.board_mv / 1000.0f);
+    } else if (sensor_data::has_value(sample)) {
         std::snprintf(value_row.text.data(), value_row.text.size(), "%s %.2f%s", name, sample.value, unit);
     } else {
         std::snprintf(value_row.text.data(), value_row.text.size(), "%s --%s", name, unit);
@@ -23,6 +25,7 @@ void reading(display_data::Row& value_row, display_data::Row& status_row,
     const char* status = "INVALID VALUE";
     status_row.tone = Tone::Error;
     switch (effective_status) {
+    case Status::RawOnly: status = "VOLTAGE ONLY"; status_row.tone = Tone::Warning; break;
     case Status::NotInitialized: status = "NOT READY"; status_row.tone = Tone::Warning; break;
     case Status::AdcError: status = "ADC ERROR"; break;
     case Status::VoltageOutOfRange: status = "VOLTAGE ERROR"; break;

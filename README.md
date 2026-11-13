@@ -23,7 +23,7 @@ pump control APIs are implemented. EC and turbidity are required sensors;
 turbidity acquisition and EC-based theoretical-pH calculation remain pending,
 along with hardware safety and power-control integration. The FSM now implements
 guarded startup, priming, STOP, faults, and reset; real START remains blocked.
-Verification includes 50 host tests and the N16R8 firmware build; integrated
+Verification includes 71 host tests and the N16R8 firmware build; integrated
 hardware testing remains. See [the state machine](docs/state_machine.md).
 See [development progress](docs/progress.md) for the status and next steps.
 
@@ -43,7 +43,7 @@ reactor/
 │   │   ├── display_manager/    # Sensor values and status for TFT
 │   │   ├── scheduler/          # Timer / scheduler
 │   │   ├── sensor_manager/     # Read / filter / calibrate
-│   │   ├── turbidity_manager/  # Turbidity monitoring scaffold
+│   │   ├── turbidity_manager/  # Optional TS-300B voltage monitoring
 │   │   ├── state_machine/      # Guarded transitions, stop, faults, and reset
 │   │   ├── pump_manager/       # Pump 1 / Pump 2 / Pump 3
 │   │   └── telemetry/          # Telemetry / serial monitor
@@ -51,7 +51,7 @@ reactor/
 │   │   ├── pump_pwm/           # Pump PWM driver
 │   │   ├── ph/                 # pH driver
 │   │   ├── ec/                 # EC driver
-│   │   ├── turbidity/          # Turbidity driver scaffold
+│   │   ├── turbidity/          # TS-300B raw-voltage driver
 │   │   ├── tft/                # Text renderer for 240x240 TFT
 │   │   └── serial/             # USB / UART driver
 │   ├── hal/
@@ -72,6 +72,10 @@ Implemented modules have matching headers and implementation files.
 See [the architecture guide](docs/architecture.md) for the layer boundaries.
 
 ## Build (ESP-IDF)
+
+For supervised hardware tests, see [hardware bring-up](docs/hardware_bringup.md).
+`make hardware-build` creates an integrated native-USB hardware test with timed commands;
+it is separate from the normal monitoring firmware. `make check` runs host tests.
 
 Activate the ESP-IDF environment first. To build for the architecture's
 ESP32-S3 N16R8 board using a separate build directory and configuration:
@@ -117,7 +121,7 @@ then sent to serial telemetry and the GMT130/ST7789 240x240 TFT. The TFT uses
 GPIO7 SCLK, GPIO9 MOSI, GPIO2 DC, and GPIO1 RESET on the DevKitC-1 N16R8.
 GPIO11 (ADC2 channel 0) is reserved for turbidity; ADC2 HAL support is in place,
 but turbidity acquisition and calibration remain unimplemented.
-Turbidity displays unavailable until its acquisition code is implemented.
+TS-300B raw voltage is supported but disabled until its external divider is installed and verified. NTU calibration is pending.
 RAM history clears at power-off; there is no persistent log yet.
 See [sensor storage and TFT](docs/display.md) for the data flow and wiring.
 
@@ -125,8 +129,7 @@ Hardware safety interlocks, watchdog management, operator commands,
 NVS calibration storage, and the other sensors remain to be implemented. The
 main loop does not start pumps automatically.
 
-Turbidity driver and application scaffolds are reserved for the next sensor
-implementation and are not registered in the firmware build yet. Other planned
-additions are recorded in the architecture guide. FreeRTOS is supplied by ESP-IDF.
+The TS-300B driver and application manager provide optional voltage acquisition.
+Other planned additions are recorded in the architecture guide. FreeRTOS is supplied by ESP-IDF.
 
 See the [code review](docs/code_review.md) for consistency fixes and maintenance guidance.
